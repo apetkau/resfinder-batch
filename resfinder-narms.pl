@@ -54,6 +54,8 @@ opendir my $db_dir, $database or die "Cannot open directory $database: $!";
 my @database_classes = map { s/\.fsa$//; $_ } grep { /\.fsa$/ } readdir $db_dir;
 closedir $db_dir;
 
+my %input_file_antimicrobial_table;
+
 my $tmpdir = tempdir();
 
 print_results_header();
@@ -63,12 +65,20 @@ for my $input_file (@ARGV) {
 
 	for my $antimicrobial_class (@database_classes) {
 		my $output_dir = "$tmpdir/$input_file_name.$antimicrobial_class";
+		$input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class} = $output_dir;
 		mkdir $output_dir;
 	
 		my $command = "resfinder.pl -d '$database' -i '$input_file' -o '$output_dir' -a '$antimicrobial_class' -k 95.00 -l 0.60 1> '$output_dir/log.out' 2> '$output_dir/log.err'";
 
 		system($command) == 0 or die "Could not run '$command': $!";
 
+	}
+}
+
+# Merge results together
+for my $input_file_name (keys %input_file_antimicrobial_table) {
+	for my $antimicrobial_class (@database_classes) {
+		my $output_dir = $input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class};
 		parse_resfinder_hits($input_file_name,"$output_dir/results_tab.txt");
 	}
 }
