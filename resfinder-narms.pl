@@ -6,15 +6,19 @@ use strict;
 use FindBin;
 use File::Temp qw/tempdir/;
 use File::Basename qw/basename/;
-use Parallel::ForkManager;
-use threads;
+use Thread::Pool;
 use Sys::Info;
 use Sys::Info::Constants qw/:device_cpu/;
 
 my $info = Sys::Info->new;
 my $cpu = $info->device('CPU');
 
-my $pm = new Parallel::ForkManager($cpu->count);
+my $thread_pool = Thread::Pool->new(
+	{
+	do => \&run_resfinder,
+	workers => $cpu->count,
+	}
+);
 
 my $script_dir = $FindBin::Bin;
 
@@ -75,7 +79,6 @@ my %input_file_antimicrobial_table;
 
 my $tmpdir = tempdir();
 
-print_results_header();
 for my $input_file (@ARGV) {
 	print STDERR "Processing $input_file\n";
 	my $input_file_name = basename($input_file);
@@ -85,17 +88,15 @@ for my $input_file (@ARGV) {
 		$input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class} = $output_dir;
 		mkdir $output_dir;
 	
-		my $pid = $pm->start and next;
-
-		run_resfinder($database,$input_file,$output_dir,$antimicrobial_class);
-
-		$pm->finish;
+		$thread_pool->job($database,$input_file,$output_dir,$antimicrobial_class);
 	}
 }
 
-$pm->wait_all_children;
+print STDERR "Waiting for all results to finish\n";
+$thread_pool->shutdown;
 
 # Merge results together
+print_results_header();
 for my $input_file_name (keys %input_file_antimicrobial_table) {
 	for my $antimicrobial_class (@database_classes) {
 		my $output_dir = $input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class};
