@@ -2142,10 +2142,10 @@ VanXY-N_1	JF802084	Van
 VanT-N_1	JF802084	Van
 VanR-N_1	JF802084	Van
 VanS-N_1	JF802084	Van
-gyrA(83)	Nal CipI
-gyrA(87)	Nal CipI
-parC(80)	Nal CipI
-gyrB(464)	Nal CipI
+#gyrA(83)	Nal CipI
+#gyrA(87)	Nal CipI
+#parC(80)	Nal CipI
+#gyrB(464)	Nal CipI
 mcr-3_1	KY924928	Colistin
 mcr-1.9_1	KY685071	Colistin
 mcr_1.8_1	KY683842	Colistin

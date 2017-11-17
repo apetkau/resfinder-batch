@@ -11,11 +11,12 @@ use Sys::Info;
 use Sys::Info::Constants qw/:device_cpu/;
 use Getopt::Long;
 
+my $script_dir = $FindBin::Bin;
+
 my $info = Sys::Info->new;
 my $cpu = $info->device('CPU');
 my $default_threads = $cpu->count;
-
-my $script_dir = $FindBin::Bin;
+my $drug_file = "$script_dir/data/ARG_drug_key.tsv";
 
 my $database = "$script_dir/resfinder/resfinder/database";
 
@@ -25,13 +26,50 @@ sub usage {
 		"\t-t|--threads: Maximum number of resfinder processes to run [$default_threads]\n";
 }
 
+sub parse_drug_table {
+	my ($file) = @_;
+
+	my $expected_column_number = 3;
+
+	my %drug_table;
+
+	open(my $file_h, '<', $file) or die "Could not open $file: $!";
+
+	my $header = readline($file_h);
+	die "Error, no contents in $file" if (not defined $header);
+	die "Error: invalid column headers" if ($header ne "Gene\tAccession\tDrug\n");
+
+	while (not eof($file_h)) {
+		defined (my $line = readline($file_h)) or die "readline failed for $file: $!";
+		chomp $line;
+
+		if ($line =~ /^#/) {
+			print STDERR "Warning: skipping line '$line' from drug table $file\n";
+			next;
+		}
+
+		my @columns = split(/\t/,$line);
+		die "Error, invalid number of columns: expected $expected_column_number but got ".scalar(@columns)." in '$line'\n" if (scalar @columns != $expected_column_number);
+
+		if (not exists $drug_table{$columns[0]}) {
+			$drug_table{$columns[1]} = {'gene' => $columns[0], 'drug' => $columns[2]};
+		} else {
+			die "Error: accession name $columns[0] exists multiple times in $file";
+		}
+	}
+
+	close($file_h);
+
+	return \%drug_table;
+}
+
 sub print_results_header {
 	# Using similar order as ABRicate <https://github.com/tseemann/abricate>
-	print "#FILE\tSEQUENCE\tSTART\tEND\tGENE\tCOVERAGE\t%IDENTITY\tDATABASE\tACCESSION\tRESFINDER_PHENOTYPE\n";
+	print "#FILE\tSEQUENCE\tSTART\tEND\tGENE\tCOVERAGE\t%IDENTITY\tDATABASE\tACCESSION\tRESFINDER_PHENOTYPE\tDRUG\n";
 }
 
 sub parse_resfinder_hits {
-	my ($input_file_name,$results_file) = @_;
+	my ($input_file_name,$results_file,$accession_drug_table) = @_;
 
 	open(my $results_fh, '<', $results_file) or die "Could not open $results_file: $!";
 	my $line = readline($results_fh);
@@ -47,7 +85,8 @@ sub parse_resfinder_hits {
 		my @values = split(/\t/,$line);
 		my ($start,$end) = split(/\.\./,$values[4]);
 		
-		print "$input_file_name\t$values[3]\t$start\t$end\t$values[0]\t$values[2]\t$values[1]\tresfinder\t$values[6]\t$values[5]\n";
+		my $drug = $accession_drug_table->{$values[6]}->{'drug'};
+		print "$input_file_name\t$values[3]\t$start\t$end\t$values[0]\t$values[2]\t$values[1]\tresfinder\t$values[6]\t$values[5]\t$drug\n";
 	}
 
 	close($results_fh);
@@ -72,13 +111,15 @@ GetOptions('t|threads=i' => \$threads,
 	or die "Invalid option\n".usage;
 
 if ($help or @ARGV == 0) {
-	print usage;
+	print usage();
 	exit 1;
 }
 
 if (not defined $threads or $threads < 1) {
 	$threads = $default_threads;
 }
+
+my $accession_drug_table = parse_drug_table($drug_file);
 
 my $thread_pool = Thread::Pool->new(
 	{
@@ -118,7 +159,7 @@ print_results_header();
 for my $input_file_name (keys %input_file_antimicrobial_table) {
 	for my $antimicrobial_class (@database_classes) {
 		my $output_dir = $input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class};
-		parse_resfinder_hits($input_file_name,"$output_dir/results_tab.txt");
+		parse_resfinder_hits($input_file_name,"$output_dir/results_tab.txt",$accession_drug_table);
 	}
 }
 
