@@ -95,7 +95,7 @@ closedir $db_dir;
 
 my %input_file_antimicrobial_table;
 
-my $tmpdir = tempdir();
+my $tmpdir = tempdir(CLEANUP => 1);
 
 for my $input_file (@ARGV) {
 	print STDERR "Processing $input_file\n";
@@ -122,4 +122,4 @@ for my $input_file_name (keys %input_file_antimicrobial_table) {
 	}
 }
 
-print STDERR "Finished running resfinder. All results in $tmpdir\n";
+print STDERR "Finished running resfinder.\n";
