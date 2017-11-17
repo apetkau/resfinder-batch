@@ -4,8 +4,17 @@ use warnings;
 use strict;
 
 use FindBin;
-use File::Temp qw /tempdir/;
-use File::Basename qw /basename/;
+use File::Temp qw/tempdir/;
+use File::Basename qw/basename/;
+use Parallel::ForkManager;
+use threads;
+use Sys::Info;
+use Sys::Info::Constants qw/:device_cpu/;
+
+my $info = Sys::Info->new;
+my $cpu = $info->device('CPU');
+
+my $pm = new Parallel::ForkManager($cpu->count);
 
 my $script_dir = $FindBin::Bin;
 
@@ -17,7 +26,7 @@ sub help {
 
 sub print_results_header {
 	# Using similar order as ABRicate <https://github.com/tseemann/abricate>
-	print "#FILE\tSEQUENCE\tSTART\tEND\tGENE\tCOVERAGE\t%IDENTITY\tDATABASE\tACCESSION\tPhenotype\n";
+	print "#FILE\tSEQUENCE\tSTART\tEND\tGENE\tCOVERAGE\t%IDENTITY\tDATABASE\tACCESSION\tRESFINDER_PHENOTYPE\n";
 }
 
 sub parse_resfinder_hits {
@@ -41,6 +50,14 @@ sub parse_resfinder_hits {
 	}
 
 	close($results_fh);
+}
+
+sub run_resfinder {
+	my ($database,$input_file,$output_dir,$antimicrobial_class) = @_;
+
+	my $command = "resfinder.pl -d '$database' -i '$input_file' -o '$output_dir' -a '$antimicrobial_class' -k 95.00 -l 0.60 1> '$output_dir/log.out' 2> '$output_dir/log.err'";
+
+	system($command) == 0 or die "Could not run '$command': $!";
 }
 
 if (@ARGV == 0) {
@@ -68,12 +85,15 @@ for my $input_file (@ARGV) {
 		$input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class} = $output_dir;
 		mkdir $output_dir;
 	
-		my $command = "resfinder.pl -d '$database' -i '$input_file' -o '$output_dir' -a '$antimicrobial_class' -k 95.00 -l 0.60 1> '$output_dir/log.out' 2> '$output_dir/log.err'";
+		my $pid = $pm->start and next;
 
-		system($command) == 0 or die "Could not run '$command': $!";
+		run_resfinder($database,$input_file,$output_dir,$antimicrobial_class);
 
+		$pm->finish;
 	}
 }
+
+$pm->wait_all_children;
 
 # Merge results together
 for my $input_file_name (keys %input_file_antimicrobial_table) {
