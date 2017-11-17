@@ -10,6 +10,7 @@ use Thread::Pool;
 use Sys::Info;
 use Sys::Info::Constants qw/:device_cpu/;
 use Getopt::Long;
+use Pod::Usage;
 
 my $script_dir = $FindBin::Bin;
 
@@ -19,12 +20,6 @@ my $default_threads = $cpu->count;
 my $drug_file = "$script_dir/data/ARG_drug_key.tsv";
 
 my $database = "$script_dir/resfinder/resfinder/database";
-
-sub usage {
-	return "Usage: $0 [-t threads] genome.fasta ...\n".
-		"Options:\n".
-		"\t-t|--threads: Maximum number of resfinder processes to run [$default_threads]\n";
-}
 
 sub parse_drug_table {
 	my ($file) = @_;
@@ -107,6 +102,13 @@ sub run_resfinder {
 	system($command) == 0 or die "Could not run '$command': $!";
 }
 
+sub usage {
+	return "Usage: $0 [-t threads] genome.fasta ...\n".
+		"Options:\n".
+		"\t-t|--threads: Maximum number of resfinder processes to run [$default_threads]\n";
+}
+
+
 ########
 # MAIN #
 ########
@@ -115,11 +117,10 @@ my ($threads,$help);
 
 GetOptions('t|threads=i' => \$threads,
            'h|help' => \$help)
-	or die "Invalid option\n".usage;
+	or pod2usage(-exitval => 1, -verbose => 1);
 
-if ($help or @ARGV == 0) {
-	print usage();
-	exit 1;
+if (@ARGV == 0) {
+	pod2usage(-exitval => 1, -verbose => 99, -sections => 'NAME|SYNOPSIS|EXAMPLE');
 }
 
 if (not defined $threads or $threads < 1) {
@@ -171,3 +172,33 @@ for my $input_file_name (keys %input_file_antimicrobial_table) {
 }
 
 print STDERR "Finished running resfinder.\n";
+
+__END__
+
+=head1 NAME
+
+resfinder-batch.pl - Compile resfinder results for many genomes into a single table.
+
+=head1 SYNOPSIS
+
+resfinder-batch.pl [options] [file ...]
+
+  Options:
+    -t|--threads  Number of resfinder instances to launch at once [defaults to max CPUs].
+    -h|--help  Print help message.
+
+=head1 DESCRIPTION
+
+B<resfinder-batch.pl> will read the given input files and execute resfinder.pl on the files with all antimicrobial classes, compiling the results to a single table.
+
+=head1 EXAMPLE
+
+resfinder-batch.pl *.fasta
+
+=over 4
+
+Identifies antimicrobial resistence genes in all the passed B<*.fasta> files, compiling the results to a single table.
+
+=back
+
+=cut
