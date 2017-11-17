@@ -64,12 +64,13 @@ sub parse_drug_table {
 }
 
 sub print_results_header {
-	# Using similar order as ABRicate <https://github.com/tseemann/abricate>
-	print "#FILE\tSEQUENCE\tSTART\tEND\tGENE\tCOVERAGE\t%IDENTITY\tDATABASE\tACCESSION\tRESFINDER_PHENOTYPE\tDRUG\n";
+	print "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tQUERY/HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
 }
 
 sub parse_resfinder_hits {
 	my ($input_file_name,$results_file,$accession_drug_table) = @_;
+
+	my $number_of_columns = 7;
 
 	open(my $results_fh, '<', $results_file) or die "Could not open $results_file: $!";
 	my $line = readline($results_fh);
@@ -83,10 +84,16 @@ sub parse_resfinder_hits {
 		defined ($line = readline($results_fh)) or die "readline failed for $results_file: $!";
 		chomp $line;
 		my @values = split(/\t/,$line);
-		my ($start,$end) = split(/\.\./,$values[4]);
+		if (scalar @values != $number_of_columns) {
+			die "Error, invalid number of columns in line. Expected $number_of_columns, got ".scalar(@values).". Line '$line'";
+		}
+
+		my ($gene,$pid,$query_hsp,$contig,$position,$phenotype,$accession) = @values;
+		my ($start,$end) = split(/\.\./,$position);
 		
-		my $drug = $accession_drug_table->{$values[6]}->{'drug'};
-		print "$input_file_name\t$values[3]\t$start\t$end\t$values[0]\t$values[2]\t$values[1]\tresfinder\t$values[6]\t$values[5]\t$drug\n";
+		my $drug = $accession_drug_table->{$accession}->{'drug'};
+		$drug = '' if (not defined $drug);
+		print "$input_file_name\t$gene\t$phenotype\t$drug\t$pid\t$query_hsp\t$contig\t$start\t$end\t$accession\n";
 	}
 
 	close($results_fh);
