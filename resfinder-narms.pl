@@ -9,23 +9,20 @@ use File::Basename qw/basename/;
 use Thread::Pool;
 use Sys::Info;
 use Sys::Info::Constants qw/:device_cpu/;
+use Getopt::Long;
 
 my $info = Sys::Info->new;
 my $cpu = $info->device('CPU');
-
-my $thread_pool = Thread::Pool->new(
-	{
-	do => \&run_resfinder,
-	workers => $cpu->count,
-	}
-);
+my $default_threads = $cpu->count;
 
 my $script_dir = $FindBin::Bin;
 
 my $database = "$script_dir/resfinder/resfinder/database";
 
-sub help {
-	return "Usage: $0 [genomes] ...\n";
+sub usage {
+	return "Usage: $0 [-t threads] genome.fasta ...\n".
+		"Options:\n".
+		"\t-t|--threads: Maximum number of resfinder processes to run [$default_threads]\n";
 }
 
 sub print_results_header {
@@ -64,10 +61,31 @@ sub run_resfinder {
 	system($command) == 0 or die "Could not run '$command': $!";
 }
 
-if (@ARGV == 0) {
-	print help();
+########
+# MAIN #
+########
+
+my ($threads,$help);
+
+GetOptions('t|threads=i' => \$threads,
+           'h|help' => \$help)
+	or die "Invalid option\n".usage;
+
+if ($help or @ARGV == 0) {
+	print usage;
 	exit 1;
 }
+
+if (not defined $threads or $threads < 1) {
+	$threads = $default_threads;
+}
+
+my $thread_pool = Thread::Pool->new(
+	{
+	do => \&run_resfinder,
+	workers => $threads
+	}
+);
 
 opendir my $db_dir, $database or die "Cannot open directory $database: $!";
 
