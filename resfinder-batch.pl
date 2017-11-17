@@ -24,7 +24,7 @@ my $database = "$script_dir/resfinder/resfinder/database";
 sub parse_drug_table {
 	my ($file) = @_;
 
-	my $expected_column_number = 3;
+	my $expected_column_number = 4;
 
 	my %drug_table;
 
@@ -32,7 +32,7 @@ sub parse_drug_table {
 
 	my $header = readline($file_h);
 	die "Error, no contents in $file" if (not defined $header);
-	die "Error: invalid column headers" if ($header ne "Gene\tAccession\tDrug\n");
+	die "Error: invalid column headers" if ($header ne "Class\tGene\tAccession\tDrug\n");
 
 	while (not eof($file_h)) {
 		defined (my $line = readline($file_h)) or die "readline failed for $file: $!";
@@ -46,10 +46,12 @@ sub parse_drug_table {
 		my @columns = split(/\t/,$line);
 		die "Error, invalid number of columns: expected $expected_column_number but got ".scalar(@columns)." in '$line'\n" if (scalar @columns != $expected_column_number);
 
-		if (not exists $drug_table{$columns[0]}) {
-			$drug_table{$columns[1]} = {'gene' => $columns[0], 'drug' => $columns[2]};
+		my ($class,$gene,$accession,$drug) = @columns;
+
+		if (not exists $drug_table{$class}{$gene}{$accession}) {
+			$drug_table{$class}{$gene}{$accession} = $drug;
 		} else {
-			die "Error: accession name $columns[0] exists multiple times in $file";
+			die "Error: class $class, gene $gene, accession $accession exists multiple times in $file";
 		}
 	}
 
@@ -63,7 +65,7 @@ sub print_results_header {
 }
 
 sub parse_resfinder_hits {
-	my ($input_file_name,$results_file,$accession_drug_table) = @_;
+	my ($input_file_name,$results_file,$gene_drug_table) = @_;
 
 	my $number_of_columns = 7;
 
@@ -86,8 +88,14 @@ sub parse_resfinder_hits {
 		my ($gene,$pid,$query_hsp,$contig,$position,$phenotype,$accession) = @values;
 		my ($start,$end) = split(/\.\./,$position);
 		
-		my $drug = $accession_drug_table->{$accession}->{'drug'};
-		$drug = '' if (not defined $drug);
+		my @gene_keys = grep { /$gene/ } (keys %$gene_drug_table);
+		my $drug = '';
+		for my $gene_key (@gene_keys) {
+			if (exists $gene_drug_table->{$gene_key}{$accession}) {
+				$drug = $gene_drug_table->{$gene_key}{$accession};
+			}
+		}
+
 		print "$input_file_name\t$gene\t$phenotype\t$drug\t$pid\t$query_hsp\t$contig\t$start\t$end\t$accession\n";
 	}
 
@@ -127,7 +135,7 @@ if (not defined $threads or $threads < 1) {
 	$threads = $default_threads;
 }
 
-my $accession_drug_table = parse_drug_table($drug_file);
+my $drug_table = parse_drug_table($drug_file);
 
 my $thread_pool = Thread::Pool->new(
 	{
@@ -167,7 +175,10 @@ print_results_header();
 for my $input_file_name (keys %input_file_antimicrobial_table) {
 	for my $antimicrobial_class (@database_classes) {
 		my $output_dir = $input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class};
-		parse_resfinder_hits($input_file_name,"$output_dir/results_tab.txt",$accession_drug_table);
+		my $gene_accession_drug_table = $drug_table->{$antimicrobial_class};
+		die "Error, no table for antimicrobial class $antimicrobial_class" if (not defined $gene_accession_drug_table);
+
+		parse_resfinder_hits($input_file_name,"$output_dir/results_tab.txt",$gene_accession_drug_table);
 	}
 }
 
