@@ -60,12 +60,8 @@ sub parse_drug_table {
 	return \%drug_table;
 }
 
-sub print_results_header {
-	print "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tQUERY/HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
-}
-
 sub parse_resfinder_hits {
-	my ($input_file_name,$results_file,$gene_drug_table) = @_;
+	my ($input_file_name,$results_file,$gene_drug_table,$out_fh) = @_;
 
 	my $number_of_columns = 7;
 
@@ -96,7 +92,7 @@ sub parse_resfinder_hits {
 			}
 		}
 
-		print "$input_file_name\t$gene\t$phenotype\t$drug\t$pid\t$query_hsp\t$contig\t$start\t$end\t$accession\n";
+		print $out_fh "$input_file_name\t$gene\t$phenotype\t$drug\t$pid\t$query_hsp\t$contig\t$start\t$end\t$accession\n";
 	}
 
 	close($results_fh);
@@ -121,18 +117,30 @@ sub usage {
 # MAIN #
 ########
 
-my ($threads,$help);
+my ($threads,$output,$help);
 
 GetOptions('t|threads=i' => \$threads,
+           'o|output=s' => \$output,
            'h|help' => \$help)
 	or pod2usage(-exitval => 1, -verbose => 1);
 
 if (@ARGV == 0) {
 	pod2usage(-exitval => 1, -verbose => 99, -sections => 'NAME|SYNOPSIS|EXAMPLE');
+} elsif ($help) {
+	pod2usage(-exitval => 0, -verbose => 99, -sections => 'NAME|SYNOPSIS|EXAMPLE');
 }
 
 if (not defined $threads or $threads < 1) {
 	$threads = $default_threads;
+}
+
+my $out_fh;
+if (defined $output and -e $output) {
+	die "Error, output file $output already exists";
+} elsif (defined $output) {
+	open($out_fh, '>', $output) or die "Could not open $output for writing: $!";
+} else {
+	$out_fh = *STDOUT;
 }
 
 my $drug_table = parse_drug_table($drug_file);
@@ -171,18 +179,19 @@ print STDERR "Waiting for all results to finish\n";
 $thread_pool->shutdown;
 
 # Merge results together
-print_results_header();
+print $out_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tQUERY/HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
 for my $input_file_name (keys %input_file_antimicrobial_table) {
 	for my $antimicrobial_class (@database_classes) {
 		my $output_dir = $input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class};
 		my $gene_accession_drug_table = $drug_table->{$antimicrobial_class};
 		die "Error, no table for antimicrobial class $antimicrobial_class" if (not defined $gene_accession_drug_table);
 
-		parse_resfinder_hits($input_file_name,"$output_dir/results_tab.txt",$gene_accession_drug_table);
+		parse_resfinder_hits($input_file_name,"$output_dir/results_tab.txt",$gene_accession_drug_table,$out_fh);
 	}
 }
 
 print STDERR "Finished running resfinder.\n";
+close($out_fh);
 
 __END__
 
@@ -196,6 +205,7 @@ resfinder-batch.pl [options] [file ...]
 
   Options:
     -t|--threads  Number of resfinder instances to launch at once [defaults to max CPUs].
+    -o|--output  Output file for results [default to stdout].
     -h|--help  Print help message.
 
 =head1 DESCRIPTION
