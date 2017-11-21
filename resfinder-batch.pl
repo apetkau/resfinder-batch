@@ -17,6 +17,21 @@ my $script_version = "unreleased";
 my $script_dir = $FindBin::Bin;
 my $database = "$script_dir/resfinder/resfinder/database";
 my $resfinder_script = 'resfinder.pl';
+
+# Info about resfinder version
+my $resfinder_version = `$resfinder_script --help | grep 'Current:' | sed -e 's/^[ ]*Current: //'`;
+chomp $resfinder_version;
+$resfinder_version = 'Unknown' if ($resfinder_version eq '');
+
+my $resfinder_path = `which $resfinder_script`;
+chomp $resfinder_path;
+$resfinder_path = 'Unknown' if ($resfinder_path eq '');
+
+# Info about resfinder database
+my $resfinder_database_version = `git -C "$database" log -1 --format="%h (%cd)"`;
+chomp $resfinder_database_version;
+$resfinder_database_version = 'Unknown' if ($resfinder_database_version eq '');
+
 my $drug_file = "$script_dir/data/ARG_drug_key.tsv";
 
 my $info = Sys::Info->new;
@@ -134,22 +149,10 @@ if ($help) {
 if ($version) {
 	print basename($0)." $script_version\n\n";
 
-	my $git_log = `git -C "$database" log -1 --format="%h (%cd)"`;
-	chomp $git_log;
-	$git_log = 'Unknown' if ($git_log eq '');
-
-	my $resfinder_path = `which $resfinder_script`;
-	chomp $resfinder_path;
-	$resfinder_path = 'Unknown' if ($resfinder_path eq '');
-
-	my $resfinder_version = `$resfinder_script --help | grep 'Current:' | sed -e 's/^[ ]*Current: //'`;
-	chomp $resfinder_version;
-	$resfinder_version = 'Unknown' if ($resfinder_version eq '');
-
 	print "Resfinder: $resfinder_path\n".
 	      "Version: $resfinder_version\n\n";
 	print "Resfinder DB: $database\n".
-              "Git commit: $git_log\n";
+              "Git commit: $resfinder_database_version\n";
 
 	exit 0;
 }
@@ -190,6 +193,8 @@ my %input_file_antimicrobial_table;
 
 my $tmpdir = tempdir(CLEANUP => 1);
 
+print STDERR "Using $resfinder_script version $resfinder_version\n";
+print STDERR "Database version $resfinder_database_version\n";
 for my $input_file (@ARGV) {
 	print STDERR "Processing $input_file\n";
 	my $input_file_name = basename($input_file);
@@ -203,7 +208,7 @@ for my $input_file (@ARGV) {
 	}
 }
 
-print STDERR "Waiting for all results to finish\n";
+print STDERR "Waiting for all results to finish. This may take a while.\n";
 $thread_pool->shutdown;
 
 # Merge results together
