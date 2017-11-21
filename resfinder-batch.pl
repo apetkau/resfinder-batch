@@ -85,7 +85,7 @@ sub parse_resfinder_hits {
 		my ($start,$end) = split(/\.\./,$position);
 		
 		my @gene_keys = grep { /$gene/ } (keys %$gene_drug_table);
-		my $drug = '';
+		my $drug = '-';
 		for my $gene_key (@gene_keys) {
 			if (exists $gene_drug_table->{$gene_key}{$accession}) {
 				$drug = $gene_drug_table->{$gene_key}{$accession};
@@ -179,7 +179,7 @@ print STDERR "Waiting for all results to finish\n";
 $thread_pool->shutdown;
 
 # Merge results together
-print $out_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tQUERY/HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
+print $out_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tLENGTH/HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
 for my $input_file_name (keys %input_file_antimicrobial_table) {
 	for my $antimicrobial_class (@database_classes) {
 		my $output_dir = $input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class};
