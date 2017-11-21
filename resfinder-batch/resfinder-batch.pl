@@ -15,7 +15,7 @@ use Pod::Usage;
 my $script_version = "unreleased";
 
 my $script_dir = $FindBin::Bin;
-my $database = "$script_dir/resfinder/resfinder/database";
+my $database = "$script_dir/../resfinder/database";
 my $resfinder_script = 'resfinder.pl';
 
 # Info about resfinder version
@@ -32,7 +32,7 @@ my $resfinder_database_version = `git -C "$database" log -1 --format="%h (%cd)"`
 chomp $resfinder_database_version;
 $resfinder_database_version = 'Unknown' if ($resfinder_database_version eq '');
 
-my $drug_file = "$script_dir/data/ARG_drug_key.tsv";
+my $drug_file = "$script_dir/../data/ARG_drug_key.tsv";
 
 my $info = Sys::Info->new;
 my $cpu = $info->device('CPU');
