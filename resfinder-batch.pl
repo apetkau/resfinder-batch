@@ -12,14 +12,16 @@ use Sys::Info::Constants qw/:device_cpu/;
 use Getopt::Long;
 use Pod::Usage;
 
+my $script_version = "unreleased";
+
 my $script_dir = $FindBin::Bin;
+my $database = "$script_dir/resfinder/resfinder/database";
+my $resfinder_script = 'resfinder.pl';
+my $drug_file = "$script_dir/data/ARG_drug_key.tsv";
 
 my $info = Sys::Info->new;
 my $cpu = $info->device('CPU');
 my $default_threads = $cpu->count;
-my $drug_file = "$script_dir/data/ARG_drug_key.tsv";
-
-my $database = "$script_dir/resfinder/resfinder/database";
 
 sub parse_drug_table {
 	my ($file) = @_;
@@ -101,7 +103,7 @@ sub parse_resfinder_hits {
 sub run_resfinder {
 	my ($database,$input_file,$output_dir,$antimicrobial_class) = @_;
 
-	my $command = "resfinder.pl -d '$database' -i '$input_file' -o '$output_dir' -a '$antimicrobial_class' -k 95.00 -l 0.60 1> '$output_dir/log.out' 2> '$output_dir/log.err'";
+	my $command = "$resfinder_script -d '$database' -i '$input_file' -o '$output_dir' -a '$antimicrobial_class' -k 95.00 -l 0.60 1> '$output_dir/log.out' 2> '$output_dir/log.err'";
 
 	system($command) == 0 or die "Could not run '$command': $!";
 }
@@ -117,17 +119,43 @@ sub usage {
 # MAIN #
 ########
 
-my ($threads,$output,$help);
+my ($threads,$output,$version,$help);
 
 GetOptions('t|threads=i' => \$threads,
            'o|output=s' => \$output,
+           'v|version' => \$version,
            'h|help' => \$help)
 	or pod2usage(-exitval => 1, -verbose => 1);
 
+if ($help) {
+	pod2usage(-exitval => 0, -verbose => 99, -sections => 'NAME|SYNOPSIS|EXAMPLE');
+}
+
+if ($version) {
+	print basename($0)." $script_version\n\n";
+
+	my $git_log = `git -C "$database" log -1 --format="%h (%cd)"`;
+	chomp $git_log;
+	$git_log = 'Unknown' if ($git_log eq '');
+
+	my $resfinder_path = `which $resfinder_script`;
+	chomp $resfinder_path;
+	$resfinder_path = 'Unknown' if ($resfinder_path eq '');
+
+	my $resfinder_version = `$resfinder_script --help | grep 'Current:' | sed -e 's/^[ ]*Current: //'`;
+	chomp $resfinder_version;
+	$resfinder_version = 'Unknown' if ($resfinder_version eq '');
+
+	print "Resfinder: $resfinder_path\n".
+	      "Version: $resfinder_version\n\n";
+	print "Resfinder DB: $database\n".
+              "Git commit: $git_log\n";
+
+	exit 0;
+}
+
 if (@ARGV == 0) {
 	pod2usage(-exitval => 1, -verbose => 99, -sections => 'NAME|SYNOPSIS|EXAMPLE');
-} elsif ($help) {
-	pod2usage(-exitval => 0, -verbose => 99, -sections => 'NAME|SYNOPSIS|EXAMPLE');
 }
 
 if (not defined $threads or $threads < 1) {
@@ -206,6 +234,7 @@ resfinder-batch.pl [options] [file ...]
   Options:
     -t|--threads  Number of resfinder instances to launch at once [defaults to max CPUs].
     -o|--output  Output file for results [default to stdout].
+    -v|--version  Print out version of software and resfinder.
     -h|--help  Print help message.
 
 =head1 DESCRIPTION
