@@ -3,5 +3,6 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 source activate resfinder
+export PATH=$DIR/../resfinder:$PATH
 
 $DIR/../resfinder-batch/resfinder-batch.pl $@

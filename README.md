@@ -37,10 +37,10 @@ resfinder-batch.pl *.fasta
 
 5. Make script `bin/resfinder-batch` to load up appropriate conda environment.  You may use [resfinder-batch.example](bin/resfinder-batch.example) as an example.
 
-6. Add `bin/` and resfinder scripts to your `PATH`.
+6. Add `bin/` your `PATH`.
 
     ```
-    export PATH=resfinder-batch/bin:resfinder-batch/resfinder:$PATH
+    export PATH=resfinder-batch/bin:$PATH
     ```
 
 7. Test
