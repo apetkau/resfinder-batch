@@ -34,6 +34,8 @@ $resfinder_database_version = 'Unknown' if ($resfinder_database_version eq '');
 my $drug_file = "$script_dir/../data/ARG_drug_key.tsv";
 
 my $default_threads = Sys::CpuAffinity::getNumCpus();
+my $default_pid_threshold = 98;
+my $default_min_length_overlap = 0.60;
 
 sub parse_drug_table {
 	my ($file) = @_;
@@ -113,9 +115,9 @@ sub parse_resfinder_hits {
 }
 
 sub run_resfinder {
-	my ($database,$input_file,$output_dir,$antimicrobial_class) = @_;
+	my ($database,$input_file,$output_dir,$antimicrobial_class,$pid_threshold,$min_length_overlap) = @_;
 
-	my $command = "$resfinder_script -d '$database' -i '$input_file' -o '$output_dir' -a '$antimicrobial_class' -k 95.00 -l 0.60 1> '$output_dir/log.out' 2> '$output_dir/log.err'";
+	my $command = "$resfinder_script -d '$database' -i '$input_file' -o '$output_dir' -a '$antimicrobial_class' -k $pid_threshold -l $min_length_overlap 1> '$output_dir/log.out' 2> '$output_dir/log.err'";
 
 	system($command) == 0 or die "Could not run '$command': $!";
 }
@@ -131,9 +133,11 @@ sub usage {
 # MAIN #
 ########
 
-my ($threads,$output,$version,$help);
+my ($threads,$pid_threshold,$min_length_overlap,$output,$version,$help);
 
 GetOptions('t|threads=i' => \$threads,
+           'k|pid-threshold=f' => \$pid_threshold,
+           'l|min-length-overlap=f' => \$min_length_overlap,
            'o|output=s' => \$output,
            'v|version' => \$version,
            'h|help' => \$help)
@@ -156,6 +160,20 @@ if ($version) {
 
 if (@ARGV == 0) {
 	pod2usage(-exitval => 1, -verbose => 99, -sections => 'NAME|SYNOPSIS|EXAMPLE');
+}
+
+if (not defined $pid_threshold) {
+	$pid_threshold = $default_pid_threshold;
+} elsif ($pid_threshold < 0 or $pid_threshold > 100) {
+	print STDERR "Warning: pid-threshold=$pid_threshold must be in range [0,100]. Defaulting to $default_pid_threshold\n";
+	$pid_threshold = $default_pid_threshold;
+}
+
+if (not defined $min_length_overlap) {
+	$min_length_overlap = $default_min_length_overlap;
+} elsif ($min_length_overlap < 0 or $min_length_overlap > 1) {
+	print STDERR "Warning: min-length-overlap=$min_length_overlap must be in range [0,1]. Defaulting to $default_min_length_overlap\n";
+	$min_length_overlap = $default_min_length_overlap;
 }
 
 if (not defined $threads or $threads < 1) {
@@ -201,7 +219,7 @@ for my $input_file (@ARGV) {
 		$input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class} = $output_dir;
 		mkdir $output_dir;
 	
-		$thread_pool->job($database,$input_file,$output_dir,$antimicrobial_class);
+		$thread_pool->job($database,$input_file,$output_dir,$antimicrobial_class,$pid_threshold,$min_length_overlap);
 	}
 }
 
@@ -235,6 +253,8 @@ resfinder-batch.pl [options] [file ...]
 
   Options:
     -t|--threads  Number of resfinder instances to launch at once [defaults to max CPUs].
+    -k|--pid-threshold  The % identity threshold [98.0].
+    -l|--min-length-overlap  The minimum length of an overlap.  For example 0.60 for a minimum overlap of 60% [0.60].
     -o|--output  Output file for results [default to stdout].
     -v|--version  Print out version of software and resfinder.
     -h|--help  Print help message.
