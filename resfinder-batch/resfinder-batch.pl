@@ -7,8 +7,7 @@ use FindBin;
 use File::Temp qw/tempdir/;
 use File::Basename qw/basename/;
 use Thread::Pool;
-use Sys::Info;
-use Sys::Info::Constants qw/:device_cpu/;
+use Sys::CpuAffinity;
 use Getopt::Long;
 use Pod::Usage;
 
@@ -34,9 +33,7 @@ $resfinder_database_version = 'Unknown' if ($resfinder_database_version eq '');
 
 my $drug_file = "$script_dir/../data/ARG_drug_key.tsv";
 
-my $info = Sys::Info->new;
-my $cpu = $info->device('CPU');
-my $default_threads = $cpu->count;
+my $default_threads = Sys::CpuAffinity::getNumCpus();
 
 sub parse_drug_table {
 	my ($file) = @_;

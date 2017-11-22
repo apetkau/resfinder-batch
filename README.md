@@ -32,7 +32,7 @@ resfinder-batch.pl *.fasta
 4. Install some of the remaining dependencies not in conda.
 
     ```
-    cpanm Thread::Pool Sys::Info Try::Tiny::Retry
+    cpanm Thread::Pool Sys::CpuAffinity Try::Tiny::Retry
     ```
 
 5. Make script `bin/resfinder-batch` to load up appropriate conda environment.  You may use [resfinder-batch.example](bin/resfinder-batch.example) as an example.
