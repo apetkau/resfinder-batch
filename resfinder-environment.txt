@@ -8,11 +8,13 @@ bzip2=1.0.6=h6d464ef_2
 ca-certificates=2017.08.26=h1d4fec5_0
 cairo=1.14.6=4
 certifi=2017.7.27.1=py27h9ceb091_0
+curl=7.52.1=0
 expat=2.2.5=he0dffb1_0
 fontconfig=2.12.1=5
 freetype=2.7=1
 gettext=0.19.8.1=hd7bead4_3
 giflib=5.1.4=ha764e47_1
+git=2.11.1=0
 glib=2.51.4=0
 gmp=6.1.2=h6c8ec71_1
 gnutls=3.5.15=0
