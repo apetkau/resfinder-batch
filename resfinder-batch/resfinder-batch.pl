@@ -200,6 +200,25 @@ sub execute_all_resfinder_tasks {
 	return \%input_file_antimicrobial_table;
 }
 
+# Purpose: Gets a list of all antimicrobial classes from the resfinder database directory.
+#
+# Input:
+#	$database  The resfinder database directory.
+#
+# Return:
+#	A list of all the resfinder antimicrobial classes.
+sub get_database_class_list {
+	my ($database) = @_;
+
+	opendir my $db_dir, $database or die "Cannot open directory $database: $!";
+	
+	# pulls out files ending in *.fsa and strips out the .fsa part
+	my @database_classes = map { s/\.fsa$//; $_ } grep { /\.fsa$/ } readdir $db_dir;
+	closedir $db_dir;
+
+	return \@database_classes;
+}
+
 ########
 # MAIN #
 ########
@@ -261,20 +280,14 @@ if (defined $output and -e $output) {
 }
 
 my $drug_table = parse_drug_table($drug_file);
+my $database_class_list = get_database_class_list($database);
 
-	opendir my $db_dir, $database or die "Cannot open directory $database: $!";
-	
-	# pulls out files ending in *.fsa and strips out the .fsa part
-	my @database_classes = map { s/\.fsa$//; $_ } grep { /\.fsa$/ } readdir $db_dir;
-	closedir $db_dir;
-	
-
-my $input_file_antimicrobial_table = execute_all_resfinder_tasks($threads,\@ARGV, \@database_classes, $pid_threshold, $min_length_overlap);
+my $input_file_antimicrobial_table = execute_all_resfinder_tasks($threads,\@ARGV, $database_class_list, $pid_threshold, $min_length_overlap);
 
 # Merge results together
 print $out_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tLENGTH/HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
 for my $input_file_name (keys %$input_file_antimicrobial_table) {
-	for my $antimicrobial_class (@database_classes) {
+	for my $antimicrobial_class (@$database_class_list) {
 		my $output_dir = $input_file_antimicrobial_table->{$input_file_name}{$antimicrobial_class};
 		my $gene_accession_drug_table = $drug_table->{$antimicrobial_class};
 		die "Error, no table for antimicrobial class $antimicrobial_class" if (not defined $gene_accession_drug_table);
