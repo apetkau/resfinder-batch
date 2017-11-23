@@ -154,6 +154,52 @@ sub run_resfinder {
 	system($command) == 0 or die "Could not run '$command': $!";
 }
 
+# Purpose: Executes all resfinder tasks for all files.
+#
+# Input:
+#	$threads  The number of threads/resfinder processes to run at once.
+#	$input_files_list  A list of input files to process through resfinder.
+#	$database_classes_list  A list of database classes.
+#	$pid_threshold  The pid threshold for resfinder.
+#	$min_length_overlap  The minimum length overlap for resfinder.
+#
+# Return:
+#	A hash table mapping input files/antimicrobial class to the resfinder output directory { 'input_file' -> { 'antimicrobial_class' -> 'resfinder_output_directory' } }.
+sub execute_all_resfinder_tasks {
+	my ($threads, $input_files_list, $database_classes_list, $pid_threshold, $min_length_overlap) = @_;
+
+	my %input_file_antimicrobial_table;
+
+	my $thread_pool = Thread::Pool->new(
+		{
+		do => \&run_resfinder,
+		workers => $threads
+		}
+	);
+	
+	my $tmpdir = tempdir(CLEANUP => 1);
+	
+	print STDERR "Using $resfinder_script version $resfinder_version\n";
+	print STDERR "Database version $resfinder_database_version\n";
+	for my $input_file (@$input_files_list) {
+		print STDERR "Processing $input_file\n";
+		my $input_file_name = basename($input_file);
+	
+		for my $antimicrobial_class (@$database_classes_list) {
+			my $output_dir = "$tmpdir/$input_file_name.$antimicrobial_class";
+			$input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class} = $output_dir;
+			mkdir $output_dir;
+		
+			$thread_pool->job($database,$input_file,$output_dir,$antimicrobial_class,$pid_threshold,$min_length_overlap);
+		}
+	}
+	
+	print STDERR "Waiting for all results to finish. This may take a while.\n";
+	$thread_pool->shutdown;
+
+	return \%input_file_antimicrobial_table;
+}
+
 ########
 # MAIN #
 ########
@@ -216,46 +262,20 @@ if (defined $output and -e $output) {
 
 my $drug_table = parse_drug_table($drug_file);
 
-my $thread_pool = Thread::Pool->new(
-	{
-	do => \&run_resfinder,
-	workers => $threads
-	}
-);
-
-opendir my $db_dir, $database or die "Cannot open directory $database: $!";
-
-# pulls out files ending in *.fsa and strips out the .fsa part
-my @database_classes = map { s/\.fsa$//; $_ } grep { /\.fsa$/ } readdir $db_dir;
-closedir $db_dir;
-
-my %input_file_antimicrobial_table;
-
-my $tmpdir = tempdir(CLEANUP => 1);
-
-print STDERR "Using $resfinder_script version $resfinder_version\n";
-print STDERR "Database version $resfinder_database_version\n";
-for my $input_file (@ARGV) {
-	print STDERR "Processing $input_file\n";
-	my $input_file_name = basename($input_file);
-
-	for my $antimicrobial_class (@database_classes) {
-		my $output_dir = "$tmpdir/$input_file_name.$antimicrobial_class";
-		$input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class} = $output_dir;
-		mkdir $output_dir;
+	opendir my $db_dir, $database or die "Cannot open directory $database: $!";
 	
-		$thread_pool->job($database,$input_file,$output_dir,$antimicrobial_class,$pid_threshold,$min_length_overlap);
-	}
-}
+	# pulls out files ending in *.fsa and strips out the .fsa part
+	my @database_classes = map { s/\.fsa$//; $_ } grep { /\.fsa$/ } readdir $db_dir;
+	closedir $db_dir;
+	
 
-print STDERR "Waiting for all results to finish. This may take a while.\n";
-$thread_pool->shutdown;
+my $input_file_antimicrobial_table = execute_all_resfinder_tasks($threads,\@ARGV, \@database_classes, $pid_threshold, $min_length_overlap);
 
 # Merge results together
 print $out_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tLENGTH/HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
-for my $input_file_name (keys %input_file_antimicrobial_table) {
+for my $input_file_name (keys %$input_file_antimicrobial_table) {
 	for my $antimicrobial_class (@database_classes) {
-		my $output_dir = $input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class};
+		my $output_dir = $input_file_antimicrobial_table->{$input_file_name}{$antimicrobial_class};
 		my $gene_accession_drug_table = $drug_table->{$antimicrobial_class};
 		die "Error, no table for antimicrobial class $antimicrobial_class" if (not defined $gene_accession_drug_table);
 
