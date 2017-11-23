@@ -17,6 +17,11 @@ my $script_dir = $FindBin::Bin;
 my $database = "$script_dir/../resfinder/database";
 my $resfinder_script = 'resfinder.pl';
 
+# Output file names
+my $output_results_table = "results_tab.txt";
+my $variants_results_table = "results_tab.variants.txt";
+my $resfinder_results = "resfinder";
+
 # Info about resfinder version
 my $resfinder_version = `$resfinder_script --help | grep 'Current:' | sed -e 's/^[ ]*Current: //'`;
 chomp $resfinder_version;
@@ -90,13 +95,14 @@ sub parse_drug_table {
 #	$input_file_name  The name of the particular input file (genome) that was passed to resfinder.
 #	$results_file  The name of the resfinder results file.
 #	$gene_drug_table  The hash table mapping genes to particular drugs.
-#	$out_fh  A file handle where output should be printed.
 #	$pid_threshold  The pid threshold for valid results.
+#	$output_valid_fh  A file handle where valid output should be printed.
+#	$output_invalid_fh  A file handle where invalid output should be printed.
 #
 # Return:
 #	Nothing.  Prints output to $out_fh.
 sub parse_resfinder_hits {
-	my ($input_file_name,$results_file,$gene_drug_table,$out_fh,$pid_threshold) = @_;
+	my ($input_file_name,$results_file,$gene_drug_table,$pid_threshold,$output_valid_fh,$output_invalid_fh) = @_;
 
 	my $number_of_columns = 7;
 
@@ -127,8 +133,8 @@ sub parse_resfinder_hits {
 			}
 		}
 
-		my $status = ($pid >= $pid_threshold) ? 'PASS' : 'FAIL';
-		print $out_fh "$input_file_name\t$gene\t$phenotype\t$drug\t$pid\t$query_hsp\t$contig\t$start\t$end\t$accession\t$status\n";
+		my $out_fh = ($pid >= $pid_threshold) ? $output_valid_fh : $output_invalid_fh;
+		print $out_fh "$input_file_name\t$gene\t$phenotype\t$drug\t$pid\t$query_hsp\t$contig\t$start\t$end\t$accession\n";
 	}
 
 	close($results_fh);
@@ -162,11 +168,12 @@ sub run_resfinder {
 #	$database_classes_list  A list of database classes.
 #	$pid_threshold  The pid threshold for resfinder.
 #	$min_length_overlap  The minimum length overlap for resfinder.
+#	$output  The main output directory.
 #
 # Return:
 #	A hash table mapping input files/antimicrobial class to the resfinder output directory { 'input_file' -> { 'antimicrobial_class' -> 'resfinder_output_directory' } }.
 sub execute_all_resfinder_tasks {
-	my ($threads, $input_files_list, $database_classes_list, $pid_threshold, $min_length_overlap) = @_;
+	my ($threads, $input_files_list, $database_classes_list, $pid_threshold, $min_length_overlap, $output) = @_;
 
 	my %input_file_antimicrobial_table;
 
@@ -177,22 +184,23 @@ sub execute_all_resfinder_tasks {
 		}
 	);
 	
-	my $tmpdir = tempdir(CLEANUP => 1);
+	my $output_resfinder_results = "$output/$resfinder_results";
+	mkdir $output_resfinder_results or die "Could not make directory $output_resfinder_results: $!";
 	
 	for my $input_file (@$input_files_list) {
-		print STDERR "Processing $input_file\n";
+		print "Processing $input_file\n";
 		my $input_file_name = basename($input_file);
 	
 		for my $antimicrobial_class (@$database_classes_list) {
-			my $output_dir = "$tmpdir/$input_file_name.$antimicrobial_class";
-			$input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class} = $output_dir;
-			mkdir $output_dir;
+			my $resfinder_out = "$output_resfinder_results/$input_file_name.$antimicrobial_class";
+			$input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class} = $resfinder_out;
+			mkdir $resfinder_out or die "Could not make directory $resfinder_out: $!";
 		
-			$thread_pool->job($database,$input_file,$output_dir,$antimicrobial_class,$pid_threshold,$min_length_overlap);
+			$thread_pool->job($database,$input_file,$resfinder_out,$antimicrobial_class,$pid_threshold,$min_length_overlap);
 		}
 	}
 	
-	print STDERR "Waiting for all results to finish. This may take a while.\n";
+	print "Waiting for all results to finish. This may take a while.\n";
 	$thread_pool->shutdown;
 
 	return \%input_file_antimicrobial_table;
@@ -220,27 +228,39 @@ sub get_database_class_list {
 # Purpose: Combines all resfinder results to a single table.
 #
 # Input:
-#	$out_fh  The file handle to write the results into.
+#	$output  The output directory to store results.
 #	$input_file_antimicrobial_table  A table mapping input files/antimicrobial classes to resfinder output directories.
 #	$database_class_list  A list of antimicrobial classes in the resfinder database.
 #	$drug_table  A table which maps the antimicrobial gene to a drug.
 #	$pid_threshold  The pid threshold for valid results.
 #
 # Return:
-#	Nothing.  Writes the table to $out_fh.
+#	Nothing.  Writes the table to files in $output.
 sub combine_resfinder_results_to_table {
-	my ($out_fh,$input_file_antimicrobial_table,$database_class_list,$drug_table,$pid_threshold) = @_;
+	my ($output,$input_file_antimicrobial_table,$database_class_list,$drug_table,$pid_threshold) = @_;
 
-	print $out_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tLENGTH/HSP\tCONTIG\tSTART\tEND\tACCESSION\tSTATUS\n";
+	my $output_valid = "$output/$output_results_table";
+	my $output_invalid = "$output/$variants_results_table";
+
+	open(my $output_valid_fh, '>', $output_valid) or die "Could not write to file $output_valid: $!";
+	open(my $output_invalid_fh, '>', $output_invalid) or die "Could not write to file $output_invalid: $!";
+
+	print $output_valid_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tLENGTH/HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
+	print $output_invalid_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tLENGTH/HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
 	for my $input_file_name (keys %$input_file_antimicrobial_table) {
 		for my $antimicrobial_class (@$database_class_list) {
-			my $output_dir = $input_file_antimicrobial_table->{$input_file_name}{$antimicrobial_class};
+			my $resfinder_results_dir = $input_file_antimicrobial_table->{$input_file_name}{$antimicrobial_class};
 			my $gene_accession_drug_table = $drug_table->{$antimicrobial_class};
 			die "Error, no table for antimicrobial class $antimicrobial_class" if (not defined $gene_accession_drug_table);
 	
-			parse_resfinder_hits($input_file_name,"$output_dir/results_tab.txt",$gene_accession_drug_table,$out_fh,$pid_threshold);
+			parse_resfinder_hits($input_file_name,"$resfinder_results_dir/results_tab.txt",$gene_accession_drug_table,$pid_threshold,$output_valid_fh,$output_invalid_fh);
 		}
 	}
+
+	print "Finished running resfinder.\n";
+	print "Results between % identity threshold of [$pid_threshold, 100] are in file $output_valid\n";
+	print "Results between % identity threshold of [$min_pid_threshold, $pid_threshold] are in file $output_invalid\n";
+	print "Resfinder results are in directory $output/$resfinder_results\n";
 }
 
 ########
@@ -294,29 +314,22 @@ if (not defined $threads or $threads < 1) {
 	$threads = $default_threads;
 }
 
-my $out_fh;
-if (defined $output and -e $output) {
-	die "Error, output file $output already exists";
-} elsif (defined $output) {
-	open($out_fh, '>', $output) or die "Could not open $output for writing: $!";
-} else {
-	$out_fh = *STDOUT;
+if (not defined $output) {
+	die "Error, output directory --output not defined\n";
+} elsif (defined $output and -e $output) {
+	die "Error, output directory $output already exists";
 }
 
 my $drug_table = parse_drug_table($drug_file);
 my $database_class_list = get_database_class_list($database);
 
-print STDERR "Using $resfinder_script version $resfinder_version\n";
-print STDERR "Database version $resfinder_database_version\n";
-print STDERR "Results between % identity threshold of [$pid_threshold, 100] are assigned a status of 'PASS'.\n";
-print STDERR "Results between % identity threshold of [$min_pid_threshold, $pid_threshold] are assigned a status of 'FAIL'.\n";
-my $input_file_antimicrobial_table = execute_all_resfinder_tasks($threads,\@ARGV, $database_class_list, $min_pid_threshold, $min_length_overlap);
+mkdir $output or die "Could not make directory $output: $!";
 
-combine_resfinder_results_to_table($out_fh,$input_file_antimicrobial_table,$database_class_list,$drug_table,$pid_threshold);
-print STDERR "Finished running resfinder.\n";
+print "Using $resfinder_script version $resfinder_version\n";
+print "Database version $resfinder_database_version\n";
+my $input_file_antimicrobial_table = execute_all_resfinder_tasks($threads,\@ARGV, $database_class_list, $min_pid_threshold, $min_length_overlap,$output);
 
-close($out_fh);
-
+combine_resfinder_results_to_table($output,$input_file_antimicrobial_table,$database_class_list,$drug_table,$pid_threshold);
 __END__
 
 =head1 NAME
@@ -331,7 +344,7 @@ resfinder-batch.pl [options] [file ...]
     -t|--threads  Number of resfinder instances to launch at once [defaults to max CPUs].
     -k|--pid-threshold  The % identity threshold [98.0].
     -l|--min-length-overlap  The minimum length of an overlap.  For example 0.60 for a minimum overlap of 60% [0.60].
-    -o|--output  Output file for results [default to stdout].
+    -o|--output  Output directory for results.
     -v|--version  Print out version of software and resfinder.
     -h|--help  Print help message.
 
