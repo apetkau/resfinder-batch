@@ -37,6 +37,14 @@ my $default_threads = Sys::CpuAffinity::getNumCpus();
 my $default_pid_threshold = 98;
 my $default_min_length_overlap = 0.60;
 
+# Purpose: This parses the table mapping gene/accession to a particular drug.
+#
+# Input:
+#	$file  The table file.
+#
+# Return:
+#	A hash table of the format { 'drug_class' -> { 'gene' -> { 'accession' -> 'drug' } } }.
+
 sub parse_drug_table {
 	my ($file) = @_;
 
@@ -76,6 +84,17 @@ sub parse_drug_table {
 	return \%drug_table;
 }
 
+# Purpose: This parses the resfinder results file and prints out entries in the compiled results table.
+#
+# Input:
+#	$input_file_name  The name of the particular input file (genome) that was passed to resfinder.
+#	$results_file  The name of the resfinder results file.
+#	$gene_drug_table  The hash table mapping genes to particular drugs.
+#	$out_fh  A file handle where output should be printed.
+#
+# Return:
+#	Nothing.  Prints output to $out_fh.
+
 sub parse_resfinder_hits {
 	my ($input_file_name,$results_file,$gene_drug_table,$out_fh) = @_;
 
@@ -114,6 +133,19 @@ sub parse_resfinder_hits {
 	close($results_fh);
 }
 
+# Purpose: Runs the resfinder software.
+#
+# Input:
+#	$database  The location to the resfinder database.
+#	$input_file  The input genome file.
+#	$output_dir  The output directory for resfinder.
+#	$antimicrobial_class  The antimicrobial class to use in resfinder.
+#	$pid_threshold  The pid threshold value for resfinder.
+#	$min_length_overlap  The min length overlap for resfinder.
+#
+# Return:
+#	Nothing.  Output gets written into $output_dir.
+
 sub run_resfinder {
 	my ($database,$input_file,$output_dir,$antimicrobial_class,$pid_threshold,$min_length_overlap) = @_;
 
@@ -121,13 +153,6 @@ sub run_resfinder {
 
 	system($command) == 0 or die "Could not run '$command': $!";
 }
-
-sub usage {
-	return "Usage: $0 [-t threads] genome.fasta ...\n".
-		"Options:\n".
-		"\t-t|--threads: Maximum number of resfinder processes to run [$default_threads]\n";
-}
-
 
 ########
 # MAIN #
