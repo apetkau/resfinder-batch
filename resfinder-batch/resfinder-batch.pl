@@ -44,7 +44,6 @@ my $default_min_length_overlap = 0.60;
 #
 # Return:
 #	A hash table of the format { 'drug_class' -> { 'gene' -> { 'accession' -> 'drug' } } }.
-
 sub parse_drug_table {
 	my ($file) = @_;
 
@@ -94,7 +93,6 @@ sub parse_drug_table {
 #
 # Return:
 #	Nothing.  Prints output to $out_fh.
-
 sub parse_resfinder_hits {
 	my ($input_file_name,$results_file,$gene_drug_table,$out_fh) = @_;
 
@@ -145,7 +143,6 @@ sub parse_resfinder_hits {
 #
 # Return:
 #	Nothing.  Output gets written into $output_dir.
-
 sub run_resfinder {
 	my ($database,$input_file,$output_dir,$antimicrobial_class,$pid_threshold,$min_length_overlap) = @_;
 
@@ -219,6 +216,31 @@ sub get_database_class_list {
 	return \@database_classes;
 }
 
+# Purpose: Combines all resfinder results to a single table.
+#
+# Input:
+#	$out_fh  The file handle to write the results into.
+#	$input_file_antimicrobial_table  A table mapping input files/antimicrobial classes to resfinder output directories.
+#	$database_class_list  A list of antimicrobial classes in the resfinder database.
+#	$drug_table  A table which maps the antimicrobial gene to a drug.
+#
+# Return:
+#	Nothing.  Writes the table to $out_fh.
+sub combine_resfinder_results_to_table {
+	my ($out_fh,$input_file_antimicrobial_table,$database_class_list,$drug_table) = @_;
+
+	print $out_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tLENGTH/HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
+	for my $input_file_name (keys %$input_file_antimicrobial_table) {
+		for my $antimicrobial_class (@$database_class_list) {
+			my $output_dir = $input_file_antimicrobial_table->{$input_file_name}{$antimicrobial_class};
+			my $gene_accession_drug_table = $drug_table->{$antimicrobial_class};
+			die "Error, no table for antimicrobial class $antimicrobial_class" if (not defined $gene_accession_drug_table);
+	
+			parse_resfinder_hits($input_file_name,"$output_dir/results_tab.txt",$gene_accession_drug_table,$out_fh);
+		}
+	}
+}
+
 ########
 # MAIN #
 ########
@@ -284,19 +306,9 @@ my $database_class_list = get_database_class_list($database);
 
 my $input_file_antimicrobial_table = execute_all_resfinder_tasks($threads,\@ARGV, $database_class_list, $pid_threshold, $min_length_overlap);
 
-# Merge results together
-print $out_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tLENGTH/HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
-for my $input_file_name (keys %$input_file_antimicrobial_table) {
-	for my $antimicrobial_class (@$database_class_list) {
-		my $output_dir = $input_file_antimicrobial_table->{$input_file_name}{$antimicrobial_class};
-		my $gene_accession_drug_table = $drug_table->{$antimicrobial_class};
-		die "Error, no table for antimicrobial class $antimicrobial_class" if (not defined $gene_accession_drug_table);
-
-		parse_resfinder_hits($input_file_name,"$output_dir/results_tab.txt",$gene_accession_drug_table,$out_fh);
-	}
-}
-
+combine_resfinder_results_to_table($out_fh,$input_file_antimicrobial_table,$database_class_list,$drug_table);
 print STDERR "Finished running resfinder.\n";
+
 close($out_fh);
 
 __END__
