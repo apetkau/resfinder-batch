@@ -124,6 +124,8 @@ sub parse_resfinder_hits {
 
 		my ($gene,$pid,$query_hsp,$contig,$position,$phenotype,$accession) = @values;
 		my ($start,$end) = split(/\.\./,$position);
+
+		$phenotype = '-' if (not defined $phenotype);
 		
 		my @gene_keys = grep { /$gene/ } (keys %$gene_drug_table);
 		my $drug = '-';
