@@ -49,7 +49,7 @@ my $default_min_length_overlap = 0.60;
 #	$file  The table file.
 #
 # Return:
-#	A hash table of the format { 'drug_class' -> { 'gene' -> { 'accession' -> 'drug' } } }.
+#	A hash table of the format { 'drug_class' -> { 'accession' -> { 'gene' -> 'drug' } } }.
 sub parse_drug_table {
 	my ($file) = @_;
 
@@ -77,8 +77,8 @@ sub parse_drug_table {
 
 		my ($class,$gene,$accession,$drug) = @columns;
 
-		if (not exists $drug_table{$class}{$gene}{$accession}) {
-			$drug_table{$class}{$gene}{$accession} = $drug;
+		if (not exists $drug_table{$class}{$accession}{$gene}) {
+			$drug_table{$class}{$accession}{$gene} = $drug;
 		} else {
 			die "Error: class $class, gene $gene, accession $accession exists multiple times in $file";
 		}
@@ -125,13 +125,20 @@ sub parse_resfinder_hits {
 		my ($gene,$pid,$query_hsp,$contig,$position,$phenotype,$accession) = @values;
 		my ($start,$end) = split(/\.\./,$position);
 
-		$phenotype = '-' if (not defined $phenotype);
+		$phenotype = '-' if (not defined $phenotype or $phenotype eq '');
 		
-		my @gene_keys = grep { /$gene/ } (keys %$gene_drug_table);
+		my $gene_drug = $gene_drug_table->{$accession};
 		my $drug = '-';
-		for my $gene_key (@gene_keys) {
-			if (exists $gene_drug_table->{$gene_key}{$accession}) {
-				$drug = $gene_drug_table->{$gene_key}{$accession};
+		my $drug_set = 0;
+		for my $gene_key (keys %$gene_drug) {
+			# $gene_key should start with $gene
+			if ((index $gene_key,$gene) == 0) {
+				if ($drug_set) {
+					print STDERR "Warning: duplicate matches for ($gene,$accession). Both '$gene_drug->{$gene_key}' and '$drug' match.\n"; 
+				} else {
+					$drug = $gene_drug->{$gene_key};
+					$drug_set = 1;
+				}
 			}
 		}
 
@@ -259,7 +266,7 @@ sub combine_resfinder_results_to_table {
 		}
 	}
 
-	print "Finished running resfinder.\n";
+	print "\nFinished running resfinder.\n";
 	print "Results between % identity threshold of [$pid_threshold, 100] are in file $output_valid\n";
 	print "Results between % identity threshold of [$min_pid_threshold, $pid_threshold] are in file $output_invalid\n";
 	print "Resfinder results are in directory $output/$resfinder_results\n";
