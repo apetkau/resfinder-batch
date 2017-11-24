@@ -10,6 +10,7 @@ use Thread::Pool;
 use Sys::CpuAffinity;
 use Getopt::Long;
 use Pod::Usage;
+use Cwd qw(abs_path);
 
 my $script_version = "unreleased";
 
@@ -21,6 +22,7 @@ my $resfinder_script = 'resfinder.pl';
 my $output_results_table = "results_tab.txt";
 my $variants_results_table = "results_tab.variants.txt";
 my $resfinder_results = "resfinder";
+my $resfinder_final_out_dir_name = "resfinder_out";
 
 # Info about resfinder version
 my $resfinder_version = `$resfinder_script --help | grep 'Current:' | sed -e 's/^[ ]*Current: //'`;
@@ -164,7 +166,13 @@ sub parse_resfinder_hits {
 sub run_resfinder {
 	my ($database,$input_file,$output_dir,$antimicrobial_class,$pid_threshold,$min_length_overlap) = @_;
 
-	my $command = "$resfinder_script -d '$database' -i '$input_file' -o '$output_dir' -a '$antimicrobial_class' -k $pid_threshold -l $min_length_overlap 1> '$output_dir/log.out' 2> '$output_dir/log.err'";
+	$database = abs_path($database);
+	$input_file = abs_path($input_file);
+	$output_dir = abs_path($output_dir);
+
+	# Change directories so that log files from BLAST/formatdb don't overwrite each other (in resfinder)
+	# Must use 'cd' as I'm using multiple threads (can't use Perl chdir).
+	my $command = "cd '$output_dir' && $resfinder_script -d '$database' -i '$input_file' -o '$resfinder_final_out_dir_name' -a '$antimicrobial_class' -k $pid_threshold -l $min_length_overlap 1> ./log.out 2> ./log.err";
 
 	system($command) == 0 or die "Could not run '$command': $!";
 }
@@ -262,7 +270,8 @@ sub combine_resfinder_results_to_table {
 			my $gene_accession_drug_table = $drug_table->{$antimicrobial_class};
 			die "Error, no table for antimicrobial class $antimicrobial_class" if (not defined $gene_accession_drug_table);
 	
-			parse_resfinder_hits($input_file_name,"$resfinder_results_dir/results_tab.txt",$gene_accession_drug_table,$pid_threshold,$output_valid_fh,$output_invalid_fh);
+			my $resfinder_results_table = "$resfinder_results_dir/$resfinder_final_out_dir_name/results_tab.txt";
+			parse_resfinder_hits($input_file_name,$resfinder_results_table,$gene_accession_drug_table,$pid_threshold,$output_valid_fh,$output_invalid_fh);
 		}
 	}
 
