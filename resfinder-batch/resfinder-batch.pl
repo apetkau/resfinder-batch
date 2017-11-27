@@ -210,6 +210,8 @@ sub execute_all_resfinder_tasks {
 	
 	for my $input_file (@$input_files_list) {
 		print "Processing $input_file\n";
+		select()->flush();
+
 		my $input_file_name = basename($input_file);
 	
 		my @job_ids;
