@@ -274,6 +274,11 @@ sub combine_resfinder_results_to_table {
 
 	my $output_valid = "$output/$output_results_table";
 	my $output_invalid = "$output/$variants_results_table";
+	my $run_info = "$output/run_info.txt";
+
+	open(my $run_info_fh, '>', $run_info) or die "Could not write to file $run_info: $!";
+	print $run_info_fh resfinder_info();
+	close($run_info_fh);
 
 	open(my $output_valid_fh, '>', $output_valid) or die "Could not write to file $output_valid: $!";
 	open(my $output_invalid_fh, '>', $output_invalid) or die "Could not write to file $output_invalid: $!";
@@ -297,6 +302,13 @@ sub combine_resfinder_results_to_table {
 	print "Resfinder results are in directory $output/$resfinder_results\n";
 }
 
+sub resfinder_info {
+	return	"Resfinder: $resfinder_path\n".
+		"Version: $resfinder_version\n\n".
+		"Resfinder DB: $database\n".
+		"Git commit: $resfinder_database_version\n";
+}
+
 ########
 # MAIN #
 ########
@@ -318,10 +330,7 @@ if ($help) {
 if ($version) {
 	print basename($0)." $script_version\n\n";
 
-	print "Resfinder: $resfinder_path\n".
-	      "Version: $resfinder_version\n\n";
-	print "Resfinder DB: $database\n".
-              "Git commit: $resfinder_database_version\n";
+	print resfinder_info();
 
 	exit 0;
 }
