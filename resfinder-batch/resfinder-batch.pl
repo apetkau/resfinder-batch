@@ -222,6 +222,8 @@ sub execute_all_resfinder_tasks {
 			$thread_pool->result($job_id);
 		}
 	}
+
+	$thread_pool->shutdown;
 	
 	return \%input_file_antimicrobial_table;
 }
