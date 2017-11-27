@@ -173,7 +173,12 @@ sub run_resfinder {
 	# Must use 'cd' as I'm using multiple threads (can't use Perl chdir).
 	my $command = "cd '$output_dir' && $resfinder_script -d '$database' -i '$input_file' -o '$resfinder_final_out_dir_name' -a '$antimicrobial_class' -k $pid_threshold -l $min_length_overlap 1> ./log.out 2> ./log.err";
 
-	system($command) == 0 or die "Could not run '$command': $!";
+	if (system($command) != 0) {
+		print STDERR "Error, could not run '$command'\n";
+		return 0;
+	}
+
+	return 1;
 }
 
 # Purpose: Executes all resfinder tasks for all files.
@@ -219,7 +224,11 @@ sub execute_all_resfinder_tasks {
 
 		# I must wait here as there are still issues when submitting all resfinder jobs into the thread pool at once
 		for my $job_id (@job_ids) {
-			$thread_pool->result($job_id);
+			my $success = $thread_pool->result($job_id);
+			if (not $success) {
+				$thread_pool->abort;
+				die "Error with job in thread $job_id";
+			}
 		}
 	}
 
