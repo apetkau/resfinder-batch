@@ -11,7 +11,7 @@ use Getopt::Long;
 use Pod::Usage;
 use Cwd qw(abs_path);
 
-my $script_version = "unreleased";
+my $script_version = "0.1";
 
 my $script_dir = $FindBin::Bin;
 my $database = "$script_dir/../resfinder/database";
@@ -280,7 +280,7 @@ sub combine_resfinder_results_to_table {
 
 	print $output_valid_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tLENGTH/HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
 	print $output_invalid_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tLENGTH/HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
-	for my $input_file_name (keys %$input_file_antimicrobial_table) {
+	for my $input_file_name (sort keys %$input_file_antimicrobial_table) {
 		for my $antimicrobial_class (@$database_class_list) {
 			my $resfinder_results_dir = $input_file_antimicrobial_table->{$input_file_name}{$antimicrobial_class};
 			my $gene_accession_drug_table = $drug_table->{$antimicrobial_class};
