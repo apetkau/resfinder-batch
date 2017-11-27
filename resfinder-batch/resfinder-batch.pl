@@ -7,7 +7,6 @@ use FindBin;
 use File::Temp qw/tempdir/;
 use File::Basename qw/basename/;
 use Thread::Pool;
-use Sys::CpuAffinity;
 use Getopt::Long;
 use Pod::Usage;
 use Cwd qw(abs_path);
@@ -40,7 +39,7 @@ $resfinder_database_version = 'Unknown' if ($resfinder_database_version eq '');
 
 my $drug_file = "$script_dir/../data/ARG_drug_key.tsv";
 
-my $default_threads = Sys::CpuAffinity::getNumCpus();
+my $default_threads = 4;
 my $min_pid_threshold = 30;
 my $default_pid_threshold = 98;
 my $default_min_length_overlap = 0.60;
@@ -108,7 +107,7 @@ sub parse_resfinder_hits {
 
 	my $number_of_columns = 7;
 
-	open(my $results_fh, '<', $results_file) or die "Could not open $results_file: $!";
+	open(my $results_fh, '<', $results_file) or die "Error: could not open $results_file: $!";
 	my $line = readline($results_fh);
 	if (not defined $line or
 		$line ne "Resistance gene\tIdentity\tQuery/HSP\tContig\tPosition in contig\tPhenotype\tAccession no.\n") {
@@ -208,18 +207,22 @@ sub execute_all_resfinder_tasks {
 		print "Processing $input_file\n";
 		my $input_file_name = basename($input_file);
 	
+		my @job_ids;
 		for my $antimicrobial_class (@$database_classes_list) {
 			my $resfinder_out = "$output_resfinder_results/$input_file_name.$antimicrobial_class";
 			$input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class} = $resfinder_out;
 			mkdir $resfinder_out or die "Could not make directory $resfinder_out: $!";
 		
-			$thread_pool->job($database,$input_file,$resfinder_out,$antimicrobial_class,$pid_threshold,$min_length_overlap);
+			my $job_id = $thread_pool->job($database,$input_file,$resfinder_out,$antimicrobial_class,$pid_threshold,$min_length_overlap);
+			push(@job_ids, $job_id);
+		}
+
+		# I must wait here as there are still issues when submitting all resfinder jobs into the thread pool at once
+		for my $job_id (@job_ids) {
+			$thread_pool->result($job_id);
 		}
 	}
 	
-	print "Waiting for all results to finish. This may take a while.\n";
-	$thread_pool->shutdown;
-
 	return \%input_file_antimicrobial_table;
 }
 
@@ -359,7 +362,7 @@ resfinder-batch.pl - Compile resfinder results for many genomes into a single ta
 resfinder-batch.pl [options] [file ...]
 
   Options:
-    -t|--threads  Number of resfinder instances to launch at once [defaults to max CPUs].
+    -t|--threads  Number of resfinder instances to launch at once [4].
     -k|--pid-threshold  The % identity threshold [98.0].
     -l|--min-length-overlap  The minimum length of an overlap.  For example 0.60 for a minimum overlap of 60% [0.60].
     -o|--output  Output directory for results.
