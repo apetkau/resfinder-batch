@@ -300,7 +300,7 @@ sub combine_resfinder_results_to_table {
 
 	my %drug_gene_phenotype;
 
-	print $summary_report_fh "FILE\tGENE\tPHENOTYPE\n";
+	print $summary_report_fh "FILE\tGENEOTYPE\tPHENOTYPE\n";
 
 	my $header = "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tDB_SEQ_LENGTH/QUERY_HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
 	print $output_valid_fh $header;
@@ -333,12 +333,16 @@ sub combine_resfinder_results_to_table {
 		}
 
 		# print to summary file
+		my @genotypes;
+		my @phenotypes;
 		for my $key (keys %gene_phenotype_all_classes) {
-			my $gene = $gene_phenotype_all_classes{$key}{'gene'};
-			my $phenotypes = join(",", @{$gene_phenotype_all_classes{$key}{'phenotype'}});
-
-			print $summary_report_fh "$input_file_name\t$gene\t$phenotypes\n";
+			push(@genotypes, $gene_phenotype_all_classes{$key}{'gene'});
+			push(@phenotypes, @{$gene_phenotype_all_classes{$key}{'phenotype'}});
 		}
+
+		my $genotype = (@genotypes > 0) ? join(', ',@genotypes) : 'none';
+		my $phenotype = (@phenotypes > 0) ? join(', ',@phenotypes) : 'Sensitive';
+		print $summary_report_fh "$input_file_name\t$genotype\t$phenotype\n";
 	}
 
 	close($output_valid_fh);
