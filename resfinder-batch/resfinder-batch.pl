@@ -20,6 +20,7 @@ my $resfinder_script = 'resfinder.pl';
 # Output file names
 my $output_results_table = "results_tab.txt";
 my $variants_results_table = "results_tab.variants.txt";
+my $summary_report = "summary.txt";
 my $resfinder_results = "resfinder";
 my $resfinder_final_out_dir_name = "resfinder_out";
 
@@ -99,11 +100,12 @@ sub parse_drug_table {
 #	$pid_threshold  The pid threshold for valid results.
 #	$output_valid_fh  A file handle where valid output should be printed.
 #	$output_invalid_fh  A file handle where invalid output should be printed.
+#	$output_report_fh  A file handle for a summary report of resistence genes.
 #
 # Return:
 #	Nothing.  Prints output to $out_fh.
 sub parse_resfinder_hits {
-	my ($input_file_name,$results_file,$gene_drug_table,$pid_threshold,$output_valid_fh,$output_invalid_fh) = @_;
+	my ($input_file_name,$results_file,$gene_drug_table,$pid_threshold,$output_valid_fh,$output_invalid_fh,$output_report_fh) = @_;
 
 	my $number_of_columns = 7;
 
@@ -274,6 +276,7 @@ sub combine_resfinder_results_to_table {
 
 	my $output_valid = "$output/$output_results_table";
 	my $output_invalid = "$output/$variants_results_table";
+	my $output_summary_report = "$output/$summary_report";
 	my $run_info = "$output/run_info.txt";
 
 	open(my $run_info_fh, '>', $run_info) or die "Could not write to file $run_info: $!";
@@ -282,9 +285,12 @@ sub combine_resfinder_results_to_table {
 
 	open(my $output_valid_fh, '>', $output_valid) or die "Could not write to file $output_valid: $!";
 	open(my $output_invalid_fh, '>', $output_invalid) or die "Could not write to file $output_invalid: $!";
+	open(my $summary_report_fh, '>', $output_summary_report) or die "Could not write to file $output_summary_report: $!";
 
-	print $output_valid_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tDB_SEQ_LENGTH/QUERY_HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
-	print $output_invalid_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tLENGTH/HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
+	my $header = "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tDB_SEQ_LENGTH/QUERY_HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
+	print $output_valid_fh $header;
+	print $output_invalid_fh $header;
+	print $summary_report_fh $header;
 	for my $input_file_name (sort keys %$input_file_antimicrobial_table) {
 		for my $antimicrobial_class (@$database_class_list) {
 			my $resfinder_results_dir = $input_file_antimicrobial_table->{$input_file_name}{$antimicrobial_class};
@@ -292,9 +298,13 @@ sub combine_resfinder_results_to_table {
 			die "Error, no table for antimicrobial class $antimicrobial_class" if (not defined $gene_accession_drug_table);
 	
 			my $resfinder_results_table = "$resfinder_results_dir/$resfinder_final_out_dir_name/results_tab.txt";
-			parse_resfinder_hits($input_file_name,$resfinder_results_table,$gene_accession_drug_table,$pid_threshold,$output_valid_fh,$output_invalid_fh);
+			parse_resfinder_hits($input_file_name,$resfinder_results_table,$gene_accession_drug_table,$pid_threshold,$output_valid_fh,$output_invalid_fh,$summary_report_fh);
 		}
 	}
+
+	close($output_valid_fh);
+	close($output_invalid_fh);
+	close($summary_report_fh);
 
 	print "\nFinished running resfinder.\n";
 	print "Results between % identity threshold of [$pid_threshold, 100] are in file $output_valid\n";
