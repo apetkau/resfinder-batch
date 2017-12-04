@@ -100,14 +100,16 @@ sub parse_drug_table {
 #	$pid_threshold  The pid threshold for valid results.
 #	$output_valid_fh  A file handle where valid output should be printed.
 #	$output_invalid_fh  A file handle where invalid output should be printed.
-#	$output_report_fh  A file handle for a summary report of resistence genes.
 #
 # Return:
-#	Nothing.  Prints output to $out_fh.
+#	$gene_phenotype_table, a table mapping gene/start/end to a phenotype { 'gene_start_end' => { 'gene' => $gene, 'phenotype' => $phenotype }}.
+#		Also prints results to $output_vaild_fh and $output_invalid_fh.
 sub parse_resfinder_hits {
-	my ($input_file_name,$results_file,$gene_drug_table,$pid_threshold,$output_valid_fh,$output_invalid_fh,$output_report_fh) = @_;
+	my ($input_file_name,$results_file,$gene_drug_table,$pid_threshold,$output_valid_fh,$output_invalid_fh) = @_;
 
 	my $number_of_columns = 7;
+
+	my %gene_phenotype_table;
 
 	open(my $results_fh, '<', $results_file) or die "Error: could not open $results_file: $!";
 	my $line = readline($results_fh);
@@ -147,9 +149,18 @@ sub parse_resfinder_hits {
 
 		my $out_fh = ($pid >= $pid_threshold) ? $output_valid_fh : $output_invalid_fh;
 		print $out_fh "$input_file_name\t$gene\t$phenotype\t$drug\t$pid\t$query_hsp\t$contig\t$start\t$end\t$accession\n";
+
+		my $key = "${gene}_${start}_${end}";
+		if (exists $gene_phenotype_table{$key}) {
+			die "Error: duplicate gene_start_stop $key found for for file $input_file_name";
+		} else {
+			$gene_phenotype_table{"${gene}_${start}_${end}"} = { 'gene' => $gene, 'phenotype' => $phenotype };
+		}
 	}
 
 	close($results_fh);
+
+	return \%gene_phenotype_table;
 }
 
 # Purpose: Runs the resfinder software.
@@ -287,18 +298,46 @@ sub combine_resfinder_results_to_table {
 	open(my $output_invalid_fh, '>', $output_invalid) or die "Could not write to file $output_invalid: $!";
 	open(my $summary_report_fh, '>', $output_summary_report) or die "Could not write to file $output_summary_report: $!";
 
+	my %drug_gene_phenotype;
+
+	print $summary_report_fh "FILE\tGENE\tPHENOTYPE\n";
+
 	my $header = "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tDB_SEQ_LENGTH/QUERY_HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
 	print $output_valid_fh $header;
 	print $output_invalid_fh $header;
-	print $summary_report_fh $header;
+
 	for my $input_file_name (sort keys %$input_file_antimicrobial_table) {
+		my %gene_phenotype_all_classes;
+
+		# print to detailed files
 		for my $antimicrobial_class (@$database_class_list) {
 			my $resfinder_results_dir = $input_file_antimicrobial_table->{$input_file_name}{$antimicrobial_class};
 			my $gene_accession_drug_table = $drug_table->{$antimicrobial_class};
 			die "Error, no table for antimicrobial class $antimicrobial_class" if (not defined $gene_accession_drug_table);
 	
 			my $resfinder_results_table = "$resfinder_results_dir/$resfinder_final_out_dir_name/results_tab.txt";
-			parse_resfinder_hits($input_file_name,$resfinder_results_table,$gene_accession_drug_table,$pid_threshold,$output_valid_fh,$output_invalid_fh,$summary_report_fh);
+			my $gene_phenotype = parse_resfinder_hits($input_file_name,$resfinder_results_table,$gene_accession_drug_table,$pid_threshold,$output_valid_fh,$output_invalid_fh);
+
+			for my $key (keys %$gene_phenotype) {
+				if (exists $gene_phenotype_all_classes{$key}) {
+					my $new_phenotype = $gene_phenotype->{$key}{'phenotype'};
+					if (not($new_phenotype ~~ $gene_phenotype->{$key}{'phenotype'})) {
+						push($gene_phenotype_all_classes{$key}{'phenotype'}, $new_phenotype);
+					}
+				} else {
+					my $new_gene = $gene_phenotype->{$key}{'gene'};
+					my $new_phenotype = $gene_phenotype->{$key}{'phenotype'};
+					$gene_phenotype_all_classes{$key} = { 'gene' => $new_gene, 'phenotype' => [$new_phenotype] };
+				}
+			}
+		}
+
+		# print to summary file
+		for my $key (keys %gene_phenotype_all_classes) {
+			my $gene = $gene_phenotype_all_classes{$key}{'gene'};
+			my $phenotypes = join(",", @{$gene_phenotype_all_classes{$key}{'phenotype'}});
+
+			print $summary_report_fh "$input_file_name\t$gene\t$phenotypes\n";
 		}
 	}
 
