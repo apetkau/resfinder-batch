@@ -10,6 +10,7 @@ use Thread::Pool;
 use Getopt::Long;
 use Pod::Usage;
 use Cwd qw(abs_path);
+use List::MoreUtils qw(uniq);
 
 my $script_version = "0.1.0";
 
@@ -20,7 +21,7 @@ my $resfinder_script = 'resfinder.pl';
 # Output file names
 my $output_results_table = "results_tab.txt";
 my $variants_results_table = "results_tab.variants.txt";
-my $summary_report = "summary.txt";
+my $summary_report = "summary.tsv";
 my $resfinder_results = "resfinder";
 my $resfinder_final_out_dir_name = "resfinder_out";
 
@@ -300,7 +301,7 @@ sub combine_resfinder_results_to_table {
 
 	my %drug_gene_phenotype;
 
-	print $summary_report_fh "FILE\tGENEOTYPE\tPHENOTYPE\n";
+	print $summary_report_fh "Isolate ID\tGenotype\tPredicted Phenotype\n";
 
 	my $header = "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tDB_SEQ_LENGTH/QUERY_HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
 	print $output_valid_fh $header;
@@ -335,14 +336,16 @@ sub combine_resfinder_results_to_table {
 		# print to summary file
 		my @genotypes;
 		my @phenotypes;
-		for my $key (keys %gene_phenotype_all_classes) {
+		for my $key (sort keys %gene_phenotype_all_classes) {
 			push(@genotypes, $gene_phenotype_all_classes{$key}{'gene'});
 			push(@phenotypes, @{$gene_phenotype_all_classes{$key}{'phenotype'}});
 		}
+		@phenotypes = uniq(@phenotypes);
 
 		my $genotype = (@genotypes > 0) ? join(', ',@genotypes) : 'none';
 		my $phenotype = (@phenotypes > 0) ? join(', ',@phenotypes) : 'Sensitive';
-		print $summary_report_fh "$input_file_name\t$genotype\t$phenotype\n";
+		my ($isolate_id) = ($input_file_name =~ /^(.*)\.[^\.]*/);
+		print $summary_report_fh "$isolate_id\t$genotype\t$phenotype\n";
 	}
 
 	close($output_valid_fh);
@@ -352,7 +355,7 @@ sub combine_resfinder_results_to_table {
 	print "\nFinished running resfinder.\n";
 	print "Results between % identity threshold of [$pid_threshold, 100] are in file $output_valid\n";
 	print "Results between % identity threshold of [$min_pid_threshold, $pid_threshold] are in file $output_invalid\n";
-	print "Resfinder results are in directory $output/$resfinder_results\n";
+	print "Summary results are in $output_summary_report\n";
 }
 
 sub resfinder_info {
