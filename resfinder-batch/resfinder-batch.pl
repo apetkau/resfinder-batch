@@ -40,7 +40,7 @@ $resfinder_database_version = 'Unknown' if ($resfinder_database_version eq '');
 my $drug_file = "$script_dir/../data/ARG_drug_key.tsv";
 
 my $default_threads = 4;
-my $min_pid_threshold = 30;
+my $min_pid_threshold = 80;
 my $default_pid_threshold = 98;
 my $default_min_length_overlap = 0.60;
 
