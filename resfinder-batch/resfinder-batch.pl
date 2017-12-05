@@ -104,7 +104,7 @@ sub parse_drug_table {
 #	$output_invalid_fh  A file handle where invalid output should be printed.
 #
 # Return:
-#	$gene_phenotype_table, a table mapping gene/start/end to a phenotype { 'gene_start_end' => { 'gene' => $gene, 'phenotype' => $phenotype }}.
+#	$gene_phenotype_table, a table mapping gene/start/end to a phenotype { 'gene_start_end' => { 'gene' => $gene, 'phenotype' => $drug }}.
 #		Also prints results to $output_vaild_fh and $output_invalid_fh.
 sub parse_resfinder_hits {
 	my ($input_file_name,$results_file,$gene_drug_table,$pid_threshold,$output_valid_fh,$output_invalid_fh) = @_;
@@ -156,7 +156,7 @@ sub parse_resfinder_hits {
 		if (exists $gene_phenotype_table{$key}) {
 			die "Error: duplicate gene_start_stop $key found for for file $input_file_name";
 		} else {
-			$gene_phenotype_table{"${gene}_${start}_${end}"} = { 'gene' => $gene, 'phenotype' => $phenotype };
+			$gene_phenotype_table{"${gene}_${start}_${end}"} = { 'gene' => $gene, 'phenotype' => $drug };
 		}
 	}
 
