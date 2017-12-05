@@ -11,6 +11,7 @@ use Getopt::Long;
 use Pod::Usage;
 use Cwd qw(abs_path);
 use List::MoreUtils qw(uniq);
+use List::Util qw(none);
 
 my $script_version = "0.1.0";
 
@@ -322,8 +323,8 @@ sub combine_resfinder_results_to_table {
 			for my $key (keys %$gene_phenotype) {
 				if (exists $gene_phenotype_all_classes{$key}) {
 					my $new_phenotype = $gene_phenotype->{$key}{'phenotype'};
-					if (not($new_phenotype ~~ $gene_phenotype->{$key}{'phenotype'})) {
-						push($gene_phenotype_all_classes{$key}{'phenotype'}, $new_phenotype);
+					if (none { $a eq $new_phenotype } @{$gene_phenotype_all_classes{$key}{'phenotype'}}) {
+						push(@{$gene_phenotype_all_classes{$key}{'phenotype'}}, $new_phenotype);
 					}
 				} else {
 					my $new_gene = $gene_phenotype->{$key}{'gene'};
