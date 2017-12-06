@@ -5,7 +5,7 @@ use strict;
 
 use FindBin;
 use File::Temp qw/tempdir/;
-use File::Basename qw/basename/;
+use File::Basename qw/basename dirname/;
 use Thread::Pool;
 use Getopt::Long;
 use Pod::Usage;
@@ -13,15 +13,15 @@ use Cwd qw(abs_path);
 use List::MoreUtils qw(uniq);
 use List::Util qw(none);
 
-my $script_version = "0.1.0";
+my $script_version = "0.2.0-prerelease";
 
 my $script_dir = $FindBin::Bin;
 my $database = "$script_dir/../resfinder/database";
 my $resfinder_script = 'resfinder.pl';
 
 # Output file names
-my $output_results_table = "results_tab.txt";
-my $variants_results_table = "results_tab.variants.txt";
+my $output_results_table = "results_tab.tsv";
+my $variants_results_table = "results_tab.variants.tsv";
 my $summary_report = "summary.tsv";
 my $resfinder_results = "resfinder";
 my $resfinder_final_out_dir_name = "resfinder_out";
@@ -31,9 +31,18 @@ my $resfinder_version = `$resfinder_script --help | grep 'Current:' | sed -e 's/
 chomp $resfinder_version;
 $resfinder_version = 'Unknown' if ($resfinder_version eq '');
 
+my $resfinder_git;
 my $resfinder_path = `which $resfinder_script`;
 chomp $resfinder_path;
-$resfinder_path = 'Unknown' if ($resfinder_path eq '');
+if (not defined $resfinder_path or $resfinder_path eq '') {
+	$resfinder_path = 'Unknown';
+	$resfinder_git = 'Uknown';
+} else {
+	my $resfinder_dir = dirname($resfinder_path);
+	$resfinder_git = `git -C "$resfinder_dir" log -1 --format="%h (%cd)"`;
+	chomp $resfinder_git;
+	$resfinder_git = 'Uknown' if ($resfinder_git eq '');
+}
 
 # Info about resfinder database
 my $resfinder_database_version = `git -C "$database" log -1 --format="%h (%cd)"`;
@@ -293,7 +302,7 @@ sub combine_resfinder_results_to_table {
 	my $run_info = "$output/run_info.txt";
 
 	open(my $run_info_fh, '>', $run_info) or die "Could not write to file $run_info: $!";
-	print $run_info_fh resfinder_info();
+	print $run_info_fh run_info();
 	close($run_info_fh);
 
 	open(my $output_valid_fh, '>', $output_valid) or die "Could not write to file $output_valid: $!";
@@ -359,9 +368,11 @@ sub combine_resfinder_results_to_table {
 	print "Summary results are in $output_summary_report\n";
 }
 
-sub resfinder_info {
-	return	"Resfinder: $resfinder_path\n".
-		"Version: $resfinder_version\n\n".
+sub run_info {
+	return	basename($0)." $script_version\n\n".
+		"Resfinder: $resfinder_path\n".
+		"Version: $resfinder_version\n".
+		"Git commit: $resfinder_git\n\n".
 		"Resfinder DB: $database\n".
 		"Git commit: $resfinder_database_version\n";
 }
@@ -385,9 +396,7 @@ if ($help) {
 }
 
 if ($version) {
-	print basename($0)." $script_version\n\n";
-
-	print resfinder_info();
+	print run_info();
 
 	exit 0;
 }
