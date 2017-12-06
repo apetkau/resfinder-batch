@@ -346,7 +346,7 @@ sub combine_resfinder_results_to_table {
 		# print to summary file
 		my @genotypes;
 		my @phenotypes;
-		for my $key (sort keys %gene_phenotype_all_classes) {
+		for my $key (sort { lc($a) cmp lc($b) } keys %gene_phenotype_all_classes) {
 			push(@genotypes, $gene_phenotype_all_classes{$key}{'gene'});
 			push(@phenotypes, @{$gene_phenotype_all_classes{$key}{'phenotype'}});
 		}
