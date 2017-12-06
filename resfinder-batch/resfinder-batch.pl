@@ -332,7 +332,7 @@ sub combine_resfinder_results_to_table {
 			for my $key (keys %$gene_phenotype) {
 				if (exists $gene_phenotype_all_classes{$key}) {
 					my $new_phenotype = $gene_phenotype->{$key}{'phenotype'};
-					if (none { $a eq $new_phenotype } @{$gene_phenotype_all_classes{$key}{'phenotype'}}) {
+					if (none { $_ eq $new_phenotype } @{$gene_phenotype_all_classes{$key}{'phenotype'}}) {
 						push(@{$gene_phenotype_all_classes{$key}{'phenotype'}}, $new_phenotype);
 					}
 				} else {
