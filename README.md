@@ -55,10 +55,12 @@ resfinder-batch.pl *.fasta
     Using resfinder.pl version 2.1
     Database version 1e47208 (Mon Nov 20 14:24:41 2017 +0100)
     Processing resfinder/test.fsa
-    Waiting for all results to finish. This may take a while.
-    FILE    GENE    RESFINDER_PHENOTYPE     DRUG    %IDENTITY       LENGTH/HSP      CONTIG  START   END     ACCESSION
-    test.fsa        aac(2')-Ic      Aminoglycoside resistance       -       100.00  546/546 gi|375294201|ref|NC_016768.1|   314249  314794  U72714
+
     Finished running resfinder.
+    Finished running resfinder.
+    Results between % identity threshold of [98, 100] are in file out/results_tab.tsv
+    Results between % identity threshold of [80, 98] are in file out/results_tab.variants.tsv
+    Summary results are in out/summary.tsv
     ```
 
 # Usage
@@ -72,8 +74,10 @@ Usage:
     resfinder-batch.pl [options] [file ...]
 
       Options:
-        -t|--threads  Number of resfinder instances to launch at once [defaults to max CPUs].
-        -o|--output  Output file for results [default to stdout].
+        -t|--threads  Number of resfinder instances to launch at once [4].
+        -k|--pid-threshold  The % identity threshold [98.0].
+        -l|--min-length-overlap  The minimum length of an overlap.  For example 0.60 for a minimum overlap of 60% [0.60].
+        -o|--output  Output directory for results.
         -v|--version  Print out version of software and resfinder.
         -h|--help  Print help message.
 

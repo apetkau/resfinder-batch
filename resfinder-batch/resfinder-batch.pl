@@ -13,7 +13,7 @@ use Cwd qw(abs_path);
 use List::MoreUtils qw(uniq);
 use List::Util qw(none);
 
-my $script_version = "0.2.0-prerelease";
+my $script_version = "0.2.0";
 
 my $script_dir = $FindBin::Bin;
 my $database = "$script_dir/../resfinder/database";
