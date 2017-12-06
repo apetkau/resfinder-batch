@@ -248,24 +248,24 @@ beta-lactam	blaACT-16_1	AB737978	ampicillin amoxi/clav cefoxitin ceftriaxone
 beta-lactam	blaBEL-1_1	DQ089809	ampicillin amoxi/clav cefoxitin ceftriaxone
 beta-lactam	blaBEL-2_1	FJ666063	ampicillin amoxi/clav cefoxitin ceftriaxone
 beta-lactam	blaBEL-3_1	GQ202694	ampicillin amoxi/clav cefoxitin ceftriaxone
-beta-lactam	blaCARB-1_1	AF313471	ampicillin  
-beta-lactam	blaCARB-2_1	M69058	ampicillin  
-beta-lactam	blaCARB-3_1	S46063	ampicillin  
-beta-lactam	blaCARB-4_1	U14749	ampicillin  
-beta-lactam	blaCARB-5_1	AF135373	ampicillin  
-beta-lactam	blaCARB-6_1	AF030945	ampicillin  
-beta-lactam	blaCARB-7_1	AF409092	ampicillin  
-beta-lactam	blaCARB-8_1	AY178993	ampicillin  
-beta-lactam	blaCARB-9_1	AY248038	ampicillin  
-beta-lactam	blaCARB-10_1	EU850412	ampicillin  
-beta-lactam	blaCARB-11_1	AY008290	ampicillin  
-beta-lactam	blaCARB-12_1	D13210	ampicillin  
-beta-lactam	cepA_1	L13472	ampicillin  
-beta-lactam	cepA_1	U05887	ampicillin  
-beta-lactam	cepA_6	FR688022	ampicillin  
-beta-lactam	cepA-49_1	U05886	ampicillin  
-beta-lactam	cepA-44_1	U05885	ampicillin  
-beta-lactam	cepA-29_1	U05884	ampicillin  
+beta-lactam	blaCARB-1_1	AF313471	ampicillin
+beta-lactam	blaCARB-2_1	M69058	ampicillin
+beta-lactam	blaCARB-3_1	S46063	ampicillin
+beta-lactam	blaCARB-4_1	U14749	ampicillin
+beta-lactam	blaCARB-5_1	AF135373	ampicillin
+beta-lactam	blaCARB-6_1	AF030945	ampicillin
+beta-lactam	blaCARB-7_1	AF409092	ampicillin
+beta-lactam	blaCARB-8_1	AY178993	ampicillin
+beta-lactam	blaCARB-9_1	AY248038	ampicillin
+beta-lactam	blaCARB-10_1	EU850412	ampicillin
+beta-lactam	blaCARB-11_1	AY008290	ampicillin
+beta-lactam	blaCARB-12_1	D13210	ampicillin
+beta-lactam	cepA_1	L13472	ampicillin
+beta-lactam	cepA_1	U05887	ampicillin
+beta-lactam	cepA_6	FR688022	ampicillin
+beta-lactam	cepA-49_1	U05886	ampicillin
+beta-lactam	cepA-44_1	U05885	ampicillin
+beta-lactam	cepA-29_1	U05884	ampicillin
 beta-lactam	blaCMY-1_1	X92508	ampicillin amoxi/clav cefoxitin ceftriaxone
 beta-lactam	blaCMY-2_1	X91840	ampicillin amoxi/clav cefoxitin ceftriaxone
 beta-lactam	blaCMY-3_1	Y16783	ampicillin amoxi/clav cefoxitin ceftriaxone
