@@ -15,6 +15,8 @@ use List::Util qw(none);
 
 my $script_version = "0.2.0";
 
+my $empty_value = '-';
+
 my $script_dir = $FindBin::Bin;
 my $database = "$script_dir/../resfinder/database";
 my $resfinder_script = 'resfinder.pl';
@@ -141,10 +143,10 @@ sub parse_resfinder_hits {
 		my ($gene,$pid,$query_hsp,$contig,$position,$phenotype,$accession) = @values;
 		my ($start,$end) = split(/\.\./,$position);
 
-		$phenotype = '-' if (not defined $phenotype or $phenotype eq '');
+		$phenotype = $empty_value if (not defined $phenotype or $phenotype eq '');
 		
 		my $gene_drug = $gene_drug_table->{$accession};
-		my $drug = '-';
+		my $drug = $empty_value;
 		my $drug_set = 0;
 		for my $gene_key (keys %$gene_drug) {
 			# $gene_key should start with $gene
@@ -332,13 +334,17 @@ sub combine_resfinder_results_to_table {
 			for my $key (keys %$gene_phenotype) {
 				if (exists $gene_phenotype_all_classes{$key}) {
 					my $new_phenotype = $gene_phenotype->{$key}{'phenotype'};
-					if (none { $_ eq $new_phenotype } @{$gene_phenotype_all_classes{$key}{'phenotype'}}) {
+					if ($new_phenotype ne $empty_value and none { $_ eq $new_phenotype } @{$gene_phenotype_all_classes{$key}{'phenotype'}}) {
 						push(@{$gene_phenotype_all_classes{$key}{'phenotype'}}, $new_phenotype);
 					}
 				} else {
 					my $new_gene = $gene_phenotype->{$key}{'gene'};
 					my $new_phenotype = $gene_phenotype->{$key}{'phenotype'};
-					$gene_phenotype_all_classes{$key} = { 'gene' => $new_gene, 'phenotype' => [$new_phenotype] };
+					if ($new_phenotype ne $empty_value) {
+						$gene_phenotype_all_classes{$key} = { 'gene' => $new_gene, 'phenotype' => [$new_phenotype] };
+					} else {
+						$gene_phenotype_all_classes{$key} = { 'gene' => $new_gene, 'phenotype' => [] };
+					}
 				}
 			}
 		}
