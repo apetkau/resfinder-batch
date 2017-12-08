@@ -1,6 +1,6 @@
 # 0.2.0
 
-Released on **December 6, 2017**.
+Released on **December 8, 2017**.
 
 * Summarize AMR genes/phenotypes into output file `out/summary.tsv`.
 * Re-name output files from `*.txt` to `*.tsv` so they load better in spreadsheet software.
