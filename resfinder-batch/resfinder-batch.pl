@@ -109,6 +109,32 @@ sub parse_drug_table {
 	return \%drug_table;
 }
 
+sub parse_pointfinder_hits {
+	my ($input_file_name,$results_file,$output_valid_fh) = @_;
+
+	open(my $results_fh, "<$results_file") or die "Could not open $results_file: $!";
+
+	my $expected_column_number = 5;
+
+	my $header = readline($results_fh);
+	die "Error, no contents in $results_file" if (not defined $header);
+	die "Error: invalid column headers '$header'" if ($header ne "Mutation\tNucleotide change\tAmino acid change\tResistance\tPMID\n");
+
+	while (not eof($results_fh)) {
+		defined (my $line = readline($results_fh)) or die "readline failed for $results_file: $!";
+		chomp $line;
+		next if ($line eq '');
+
+		my @columns = split(/\t/,$line);
+		die "Error, invalid number of columns: expected $expected_column_number but got ".scalar(@columns)." in '$line'\n" if (scalar @columns != $expected_column_number);
+		my ($mutation,$nucleotide_change,$aa_change,$resistance,$pmid) = @columns;
+
+		print $output_valid_fh "$input_file_name\t$mutation\t$nucleotide_change\t$resistance\t$aa_change\t$pmid\n";
+	}
+
+	close($results_fh);
+}
+
 # Purpose: This parses the resfinder results file and prints out entries in the compiled results table.
 #
 # Input:
@@ -236,7 +262,10 @@ sub run_pointfinder {
 #	$output  The main output directory.
 #
 # Return:
-#	A hash table mapping input files/antimicrobial class to the resfinder output directory { 'input_file' -> { 'antimicrobial_class' -> 'resfinder_output_directory' } }.
+#	A hash table mapping input files to resfinder/pointfinder antimicrobial class to the resfinder/pointfinder output directory { 'input_file' -> { 
+#		'resfinder' -> { 'antimicrobial_class' -> 'resfinder_output_directory' }
+#		'pointfinder' -> 'output_directory'
+#	} }.
 sub execute_all_resfinder_tasks {
 	my ($threads, $input_files_list, $database_classes_list, $pid_threshold, $min_length_overlap, $output) = @_;
 
@@ -268,6 +297,8 @@ sub execute_all_resfinder_tasks {
 		my $organism = 'salmonella';
 		my $pointfinder_out = "$output_resfinder_results/pointfinder.$input_file_name";
 		mkdir $pointfinder_out;
+		$input_file_antimicrobial_table{$input_file_name}{'pointfinder'} = $pointfinder_out;
+
 		my $job_id = $thread_pool_pointfinder->job($database_pointfinder,$input_file,$pointfinder_out,$organism);
 	}
 	
@@ -281,7 +312,7 @@ sub execute_all_resfinder_tasks {
 		my @job_ids;
 		for my $antimicrobial_class (@$database_classes_list) {
 			my $resfinder_out = "$output_resfinder_results/$input_file_name.$antimicrobial_class";
-			$input_file_antimicrobial_table{$input_file_name}{$antimicrobial_class} = $resfinder_out;
+			$input_file_antimicrobial_table{$input_file_name}{'resfinder'}{$antimicrobial_class} = $resfinder_out;
 			mkdir $resfinder_out or die "Could not make directory $resfinder_out: $!";
 		
 			my $job_id = $thread_pool->job($database,$input_file,$resfinder_out,$antimicrobial_class,$pid_threshold,$min_length_overlap);
@@ -324,6 +355,25 @@ sub get_database_class_list {
 	return \@database_classes;
 }
 
+# Purpose: Gets the pointfinder results file.
+#
+# Input:
+#	$output_dir  The output directory containing pointfinder results files.
+#
+# Return:
+#	The path to the pointfinder results file.
+sub get_pointfinder_results_file {
+	my ($output_dir) = @_;
+
+	opendir my $dh, $output_dir or die "Could not open directory $output_dir: $!";
+
+	my ($results_file) = grep { /PointFinder_results\.txt/ } readdir $dh;
+	closedir $dh;
+
+	die "Error, no results file in $output_dir" if (not defined $results_file);
+	return "$output_dir/$results_file";
+}
+
 # Purpose: Combines all resfinder results to a single table.
 #
 # Input:
@@ -361,10 +411,12 @@ sub combine_resfinder_results_to_table {
 
 	for my $input_file_name (sort keys %$input_file_antimicrobial_table) {
 		my %gene_phenotype_all_classes;
+		my $resfinder_amr_table = $input_file_antimicrobial_table->{$input_file_name}{'resfinder'};
+		my $pointfinder_results_dir = $input_file_antimicrobial_table->{$input_file_name}{'pointfinder'};
 
-		# print to detailed files
+		# resfinder print to detailed files
 		for my $antimicrobial_class (@$database_class_list) {
-			my $resfinder_results_dir = $input_file_antimicrobial_table->{$input_file_name}{$antimicrobial_class};
+			my $resfinder_results_dir = $resfinder_amr_table->{$antimicrobial_class};
 			my $gene_accession_drug_table = $drug_table->{$antimicrobial_class};
 			die "Error, no table for antimicrobial class $antimicrobial_class" if (not defined $gene_accession_drug_table);
 	
@@ -388,6 +440,10 @@ sub combine_resfinder_results_to_table {
 				}
 			}
 		}
+
+		# pointfinder print to detailed files
+		my $pointfinder_results_file = get_pointfinder_results_file($pointfinder_results_dir);
+		parse_pointfinder_hits($input_file_name,$pointfinder_results_file,$output_valid_fh);
 
 		# print to summary file
 		my @genotypes;
