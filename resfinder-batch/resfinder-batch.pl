@@ -19,7 +19,12 @@ my $empty_value = '-';
 
 my $script_dir = $FindBin::Bin;
 my $database = "$script_dir/../resfinder/database";
+my $database_pointfinder = "$script_dir/../pointfinder-3.0/database";
 my $resfinder_script = 'resfinder.pl';
+my $pointfinder_script = "$script_dir/../pointfinder-3.0/pointfinder-3.0.py";
+my $blastn_path = `which blastn`;
+chomp $blastn_path;
+die "Error, missing 'blastn'" if (not defined $blastn_path or $blastn_path eq '');
 
 # Output file names
 my $output_results_table = "results_tab.tsv";
@@ -207,6 +212,19 @@ sub run_resfinder {
 	return 1;
 }
 
+sub run_pointfinder {
+	my ($database,$input_file,$output_dir,$organism) = @_;
+
+	my $command = "python $pointfinder_script -p '$database' -m_p '$blastn_path' -s '$organism' -m blastn -o '$output_dir' -i '$input_file' 1> $output_dir/log.out 2> $output_dir/log.err";
+
+	if (system($command) != 0) {
+		print STDERR "Error, could not run '$command'\n";
+		return 0;
+	}
+
+	return 1;
+}
+
 # Purpose: Executes all resfinder tasks for all files.
 #
 # Input:
@@ -230,16 +248,36 @@ sub execute_all_resfinder_tasks {
 		workers => $threads
 		}
 	);
+
+	my $thread_pool_pointfinder = Thread::Pool->new(
+		{
+		do => \&run_pointfinder,
+		worksers => $threads
+		}
+	);
 	
 	my $output_resfinder_results = "$output/$resfinder_results";
 	mkdir $output_resfinder_results or die "Could not make directory $output_resfinder_results: $!";
+
+	# Do pointfinder results
+	for my $input_file (@$input_files_list) {
+		print "Launch pointfinder on $input_file\n";
+		select()->flush();
+
+		my $input_file_name = basename($input_file);
+		my $organism = 'salmonella';
+		my $pointfinder_out = "$output_resfinder_results/pointfinder.$input_file_name";
+		mkdir $pointfinder_out;
+		my $job_id = $thread_pool_pointfinder->job($database_pointfinder,$input_file,$pointfinder_out,$organism);
+	}
 	
 	for my $input_file (@$input_files_list) {
-		print "Processing $input_file\n";
+		print "Launch resfinder on $input_file\n";
 		select()->flush();
 
 		my $input_file_name = basename($input_file);
 	
+		# Do resfinder results
 		my @job_ids;
 		for my $antimicrobial_class (@$database_classes_list) {
 			my $resfinder_out = "$output_resfinder_results/$input_file_name.$antimicrobial_class";
@@ -261,6 +299,8 @@ sub execute_all_resfinder_tasks {
 	}
 
 	$thread_pool->shutdown;
+
+	$thread_pool_pointfinder->shutdown;
 	
 	return \%input_file_antimicrobial_table;
 }
