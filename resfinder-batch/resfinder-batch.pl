@@ -256,6 +256,7 @@ sub run_pointfinder {
 #
 # Input:
 #	$threads  The number of threads/resfinder processes to run at once.
+#       $pointfinder_organism  The organism to use for pointfinder.  Leave undefined for disabling pointfinder.
 #	$input_files_list  A list of input files to process through resfinder.
 #	$database_classes_list  A list of database classes.
 #	$pid_threshold  The pid threshold for resfinder.
@@ -268,7 +269,7 @@ sub run_pointfinder {
 #		'pointfinder' -> 'output_directory'
 #	} }.
 sub execute_all_resfinder_tasks {
-	my ($threads, $input_files_list, $database_classes_list, $pid_threshold, $min_length_overlap, $output) = @_;
+	my ($threads, $pointfinder_organism, $input_files_list, $database_classes_list, $pid_threshold, $min_length_overlap, $output) = @_;
 
 	my %input_file_antimicrobial_table;
 
@@ -289,18 +290,20 @@ sub execute_all_resfinder_tasks {
 	my $output_resfinder_results = "$output/$resfinder_results";
 	mkdir $output_resfinder_results or die "Could not make directory $output_resfinder_results: $!";
 
-	# Do pointfinder results
-	for my $input_file (@$input_files_list) {
-		print "Launch pointfinder on $input_file\n";
-		select()->flush();
-
-		my $input_file_name = basename($input_file);
-		my $organism = 'salmonella';
-		my $pointfinder_out = "$output_resfinder_results/pointfinder.$input_file_name";
-		mkdir $pointfinder_out;
-		$input_file_antimicrobial_table{$input_file_name}{'pointfinder'} = $pointfinder_out;
-
-		my $job_id = $thread_pool_pointfinder->job($database_pointfinder,$input_file,$pointfinder_out,$organism);
+	my $execute_pointfinder = (defined $pointfinder_organism);
+	if ($execute_pointfinder) {
+		# Do pointfinder results
+		for my $input_file (@$input_files_list) {
+			print "Launch pointfinder on $input_file\n";
+			select()->flush();
+	
+			my $input_file_name = basename($input_file);
+			my $pointfinder_out = "$output_resfinder_results/pointfinder.$input_file_name";
+			mkdir $pointfinder_out;
+			$input_file_antimicrobial_table{$input_file_name}{'pointfinder'} = $pointfinder_out;
+	
+			my $job_id = $thread_pool_pointfinder->job($database_pointfinder,$input_file,$pointfinder_out,$pointfinder_organism);
+		}
 	}
 	
 	for my $input_file (@$input_files_list) {
@@ -383,11 +386,12 @@ sub get_pointfinder_results_file {
 #	$database_class_list  A list of antimicrobial classes in the resfinder database.
 #	$drug_table  A table which maps the antimicrobial gene to a drug.
 #	$pid_threshold  The pid threshold for valid results.
+#	$pointfinder_organism  The organism to use for pointfinder (undefined if pointfinder is disabled).
 #
 # Return:
 #	Nothing.  Writes the table to files in $output.
 sub combine_resfinder_results_to_table {
-	my ($output,$input_file_antimicrobial_table,$database_class_list,$drug_table,$pid_threshold) = @_;
+	my ($output,$input_file_antimicrobial_table,$database_class_list,$drug_table,$pid_threshold,$pointfinder_organism) = @_;
 
 	my $output_valid = "$output/$output_results_table";
 	my $output_invalid = "$output/$variants_results_table";
@@ -395,14 +399,20 @@ sub combine_resfinder_results_to_table {
 	my $output_pointfinder_valid = "$output/$pointfinder_valid_file";
 	my $run_info = "$output/run_info.txt";
 
+	my $do_pointfinder = (defined $pointfinder_organism);
+
 	open(my $run_info_fh, '>', $run_info) or die "Could not write to file $run_info: $!";
 	print $run_info_fh run_info();
+	if ($do_pointfinder) {
+		print $run_info_fh "Running both ResFinder and PointFinder (organism=$pointfinder_organism)\n";
+	} else {
+		print $run_info_fh "Running only ResFinder\n";
+	}
 	close($run_info_fh);
 
 	open(my $output_valid_fh, '>', $output_valid) or die "Could not write to file $output_valid: $!";
 	open(my $output_invalid_fh, '>', $output_invalid) or die "Could not write to file $output_invalid: $!";
 	open(my $summary_report_fh, '>', $output_summary_report) or die "Could not write to file $output_summary_report: $!";
-	open(my $output_pointfinder_valid_fh, '>', $output_pointfinder_valid) or die "Could not write to file $output_pointfinder_valid: $!";
 
 	my %drug_gene_phenotype;
 
@@ -412,13 +422,16 @@ sub combine_resfinder_results_to_table {
 	print $output_valid_fh $header;
 	print $output_invalid_fh $header;
 
-	# pointfinder print to detailed files
-	print $output_pointfinder_valid_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tNUCLEOTIDE\tAMINO_ACID\tPMID\n";
+	my $output_pointfinder_valid_fh;
+	if ($do_pointfinder) {
+		open($output_pointfinder_valid_fh, '>', $output_pointfinder_valid) or die "Could not write to file $output_pointfinder_valid: $!";
+		# pointfinder print to detailed files
+		print $output_pointfinder_valid_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tNUCLEOTIDE\tAMINO_ACID\tPMID\n";
+	}
 
 	for my $input_file_name (sort keys %$input_file_antimicrobial_table) {
 		my %gene_phenotype_all_classes;
 		my $resfinder_amr_table = $input_file_antimicrobial_table->{$input_file_name}{'resfinder'};
-		my $pointfinder_results_dir = $input_file_antimicrobial_table->{$input_file_name}{'pointfinder'};
 
 		# resfinder print to detailed files
 		for my $antimicrobial_class (@$database_class_list) {
@@ -447,8 +460,11 @@ sub combine_resfinder_results_to_table {
 			}
 		}
 
-		my $pointfinder_results_file = get_pointfinder_results_file($pointfinder_results_dir);
-		parse_pointfinder_hits($input_file_name,$pointfinder_results_file,$output_pointfinder_valid_fh);
+		if ($do_pointfinder) {
+			my $pointfinder_results_dir = $input_file_antimicrobial_table->{$input_file_name}{'pointfinder'};
+			my $pointfinder_results_file = get_pointfinder_results_file($pointfinder_results_dir);
+			parse_pointfinder_hits($input_file_name,$pointfinder_results_file,$output_pointfinder_valid_fh);
+		}
 
 		# print to summary file
 		my @genotypes;
@@ -468,11 +484,12 @@ sub combine_resfinder_results_to_table {
 	close($output_valid_fh);
 	close($output_invalid_fh);
 	close($summary_report_fh);
-	close($output_pointfinder_valid_fh);
+	close($output_pointfinder_valid_fh) if ($do_pointfinder);
 
 	print "\nFinished running resfinder.\n";
 	print "Results between % identity threshold of [$pid_threshold, 100] are in file $output_valid\n";
 	print "Results between % identity threshold of [$min_pid_threshold, $pid_threshold] are in file $output_invalid\n";
+	print "Pointfinder results are in file $output_pointfinder_valid\n" if ($do_pointfinder);
 	print "Summary results are in $output_summary_report\n";
 }
 
@@ -489,9 +506,10 @@ sub run_info {
 # MAIN #
 ########
 
-my ($threads,$pid_threshold,$min_length_overlap,$output,$version,$help);
+my ($threads,$pointfinder_organism,$pid_threshold,$min_length_overlap,$output,$version,$help);
 
 GetOptions('t|threads=i' => \$threads,
+           'p|pointfinder-organism=s' => \$pointfinder_organism,
            'k|pid-threshold=f' => \$pid_threshold,
            'l|min-length-overlap=f' => \$min_length_overlap,
            'o|output=s' => \$output,
@@ -544,14 +562,15 @@ mkdir $output or die "Could not make directory $output: $!";
 
 print "Using $resfinder_script version $resfinder_version\n";
 print "Database version $resfinder_database_version\n";
-my $input_file_antimicrobial_table = execute_all_resfinder_tasks($threads,\@ARGV, $database_class_list, $min_pid_threshold, $min_length_overlap,$output);
+print "Using pointfinder with organism $pointfinder_organism\n" if (defined $pointfinder_organism);
+my $input_file_antimicrobial_table = execute_all_resfinder_tasks($threads,$pointfinder_organism,\@ARGV, $database_class_list, $min_pid_threshold, $min_length_overlap,$output);
 
-combine_resfinder_results_to_table($output,$input_file_antimicrobial_table,$database_class_list,$drug_table,$pid_threshold);
+combine_resfinder_results_to_table($output,$input_file_antimicrobial_table,$database_class_list,$drug_table,$pid_threshold,$pointfinder_organism);
 __END__
 
 =head1 NAME
 
-resfinder-batch.pl - Compile resfinder results for many genomes into a single table.
+resfinder-batch.pl - Compile resfinder/pointfinder results for many genomes into a single table.
 
 =head1 SYNOPSIS
 
@@ -559,6 +578,7 @@ resfinder-batch.pl [options] [file ...]
 
   Options:
     -t|--threads  Number of resfinder instances to launch at once [4].
+    -p|--pointfinder-organism  Enables pointfinder with the given organism [default disabled].
     -k|--pid-threshold  The % identity threshold [98.0].
     -l|--min-length-overlap  The minimum length of an overlap.  For example 0.60 for a minimum overlap of 60% [0.60].
     -o|--output  Output directory for results.
