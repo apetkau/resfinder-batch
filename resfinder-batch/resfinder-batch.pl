@@ -21,7 +21,8 @@ my $script_dir = $FindBin::Bin;
 my $database = "$script_dir/../resfinder/database";
 my $database_pointfinder = "$script_dir/../pointfinder-3.0/database";
 my $resfinder_script = 'resfinder.pl';
-my $pointfinder_script = "$script_dir/../pointfinder-3.0/pointfinder-3.0.py";
+my $pointfinder_script_file = 'pointfinder-3.0.py';
+my $pointfinder_script = "$script_dir/../pointfinder-3.0/$pointfinder_script_file";
 my $blastn_path = `which blastn`;
 chomp $blastn_path;
 die "Error, missing 'blastn'" if (not defined $blastn_path or $blastn_path eq '');
@@ -44,18 +45,28 @@ my $resfinder_path = `which $resfinder_script`;
 chomp $resfinder_path;
 if (not defined $resfinder_path or $resfinder_path eq '') {
 	$resfinder_path = 'Unknown';
-	$resfinder_git = 'Uknown';
+	$resfinder_git = 'Unknown';
 } else {
 	my $resfinder_dir = dirname($resfinder_path);
 	$resfinder_git = `git -C "$resfinder_dir" log -1 --format="%h (%cd)"`;
 	chomp $resfinder_git;
-	$resfinder_git = 'Uknown' if ($resfinder_git eq '');
+	$resfinder_git = 'Unknown' if ($resfinder_git eq '');
 }
+
+my $pointfinder_dir = dirname($pointfinder_script);
+my $pointfinder_git = `git -C "$pointfinder_dir" log -1 --format="%h (%cd)"`;
+chomp $pointfinder_git;
+$pointfinder_git = 'Unknown' if ($pointfinder_git eq '');
 
 # Info about resfinder database
 my $resfinder_database_version = `git -C "$database" log -1 --format="%h (%cd)"`;
 chomp $resfinder_database_version;
 $resfinder_database_version = 'Unknown' if ($resfinder_database_version eq '');
+
+# Info about pointfinder database
+my $pointfinder_database_version = `git -C "$database_pointfinder" log -1 --format="%h (%cd)"`;
+chomp $pointfinder_database_version;
+$pointfinder_database_version = 'Unknown' if ($pointfinder_database_version eq '');
 
 my $drug_file = "$script_dir/../data/ARG_drug_key.tsv";
 my $pointfinder_drug_file = "$script_dir/../data/ARG_drug_key_pointfinder.tsv";
@@ -478,9 +489,9 @@ sub combine_resfinder_results_to_table {
 	open(my $run_info_fh, '>', $run_info) or die "Could not write to file $run_info: $!";
 	print $run_info_fh run_info();
 	if ($do_pointfinder) {
-		print $run_info_fh "Running both ResFinder and PointFinder (organism=$pointfinder_organism)\n";
+		print $run_info_fh "\nRunning both ResFinder and PointFinder (organism=$pointfinder_organism)\n";
 	} else {
-		print $run_info_fh "Running only ResFinder\n";
+		print $run_info_fh "\nRunning only ResFinder\n";
 	}
 	close($run_info_fh);
 
@@ -581,7 +592,11 @@ sub run_info {
 		"Version: $resfinder_version\n".
 		"Git commit: $resfinder_git\n\n".
 		"Resfinder DB: $database\n".
-		"Git commit: $resfinder_database_version\n";
+		"Git commit: $resfinder_database_version\n\n".
+		"Pointfinder: $pointfinder_dir\n".
+		"Git commit: $pointfinder_git\n\n".
+		"Pointfinder DB: $database_pointfinder\n".
+		"Git commit: $pointfinder_database_version\n";
 }
 
 ########
@@ -589,6 +604,8 @@ sub run_info {
 ########
 
 my ($threads,$pointfinder_organism,$pid_threshold,$min_length_overlap,$output,$version,$help);
+
+my @pointfinder_organisms = ('salmonella', 'e.coli', 'campylobacter');
 
 GetOptions('t|threads=i' => \$threads,
            'p|pointfinder-organism=s' => \$pointfinder_organism,
@@ -637,6 +654,11 @@ if (not defined $output) {
 	die "Error, output directory $output already exists";
 }
 
+if (defined $pointfinder_organism and scalar(grep { /^$pointfinder_organism$/ } @pointfinder_organisms) == 0) {
+	print "'$pointfinder_organism' is invalid for --pointfinder-organism.  Must be one of [".join(", ",@pointfinder_organisms),"]\n";
+	pod2usage(-exitval => 1, -verbose => 1);
+}
+
 my $drug_table = parse_drug_table($drug_file);
 my $pointfinder_drug_table = parse_pointfinder_drug_table($pointfinder_drug_file);
 my $database_class_list = get_database_class_list($database);
@@ -645,7 +667,11 @@ mkdir $output or die "Could not make directory $output: $!";
 
 print "Using $resfinder_script version $resfinder_version\n";
 print "Database version $resfinder_database_version\n";
-print "Using pointfinder with organism $pointfinder_organism\n" if (defined $pointfinder_organism);
+if (defined $pointfinder_organism) {
+	print "Using $pointfinder_script_file version $pointfinder_git with organism $pointfinder_organism\n";
+} else {
+	print "Will not run PointFinder\n";
+}
 my $input_file_antimicrobial_table = execute_all_resfinder_tasks($threads,$pointfinder_organism,\@ARGV, $database_class_list, $min_pid_threshold, $min_length_overlap,$output);
 
 combine_resfinder_results_to_table($output,$input_file_antimicrobial_table,$database_class_list,$drug_table,$pointfinder_drug_table,$pid_threshold,$pointfinder_organism);
@@ -661,7 +687,7 @@ resfinder-batch.pl [options] [file ...]
 
   Options:
     -t|--threads  Number of resfinder instances to launch at once [4].
-    -p|--pointfinder-organism  Enables pointfinder with the given organism [default disabled].
+    -p|--pointfinder-organism  Enables pointfinder with the given organism {'salmonella', 'e.coli', 'campylobacter'} [default disabled].
     -k|--pid-threshold  The % identity threshold [98.0].
     -l|--min-length-overlap  The minimum length of an overlap.  For example 0.60 for a minimum overlap of 60% [0.60].
     -o|--output  Output directory for results.
