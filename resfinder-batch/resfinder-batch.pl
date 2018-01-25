@@ -29,6 +29,7 @@ die "Error, missing 'blastn'" if (not defined $blastn_path or $blastn_path eq ''
 # Output file names
 my $output_results_table = "results_tab.tsv";
 my $variants_results_table = "results_tab.variants.tsv";
+my $pointfinder_valid_file = "results_tab.pointfinder.tsv";
 my $summary_report = "summary.tsv";
 my $resfinder_results = "resfinder";
 my $resfinder_final_out_dir_name = "resfinder_out";
@@ -129,7 +130,7 @@ sub parse_pointfinder_hits {
 		die "Error, invalid number of columns: expected $expected_column_number but got ".scalar(@columns)." in '$line'\n" if (scalar @columns != $expected_column_number);
 		my ($mutation,$nucleotide_change,$aa_change,$resistance,$pmid) = @columns;
 
-		print $output_valid_fh "$input_file_name\t$mutation\t$nucleotide_change\t$resistance\t$aa_change\t$pmid\n";
+		print $output_valid_fh "$input_file_name\t$mutation\t$resistance\t$nucleotide_change\t$aa_change\t$pmid\n";
 	}
 
 	close($results_fh);
@@ -391,6 +392,7 @@ sub combine_resfinder_results_to_table {
 	my $output_valid = "$output/$output_results_table";
 	my $output_invalid = "$output/$variants_results_table";
 	my $output_summary_report = "$output/$summary_report";
+	my $output_pointfinder_valid = "$output/$pointfinder_valid_file";
 	my $run_info = "$output/run_info.txt";
 
 	open(my $run_info_fh, '>', $run_info) or die "Could not write to file $run_info: $!";
@@ -400,6 +402,7 @@ sub combine_resfinder_results_to_table {
 	open(my $output_valid_fh, '>', $output_valid) or die "Could not write to file $output_valid: $!";
 	open(my $output_invalid_fh, '>', $output_invalid) or die "Could not write to file $output_invalid: $!";
 	open(my $summary_report_fh, '>', $output_summary_report) or die "Could not write to file $output_summary_report: $!";
+	open(my $output_pointfinder_valid_fh, '>', $output_pointfinder_valid) or die "Could not write to file $output_pointfinder_valid: $!";
 
 	my %drug_gene_phenotype;
 
@@ -408,6 +411,9 @@ sub combine_resfinder_results_to_table {
 	my $header = "FILE\tGENE\tRESFINDER_PHENOTYPE\tDRUG\t%IDENTITY\tDB_SEQ_LENGTH/QUERY_HSP\tCONTIG\tSTART\tEND\tACCESSION\n";
 	print $output_valid_fh $header;
 	print $output_invalid_fh $header;
+
+	# pointfinder print to detailed files
+	print $output_pointfinder_valid_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tNUCLEOTIDE\tAMINO_ACID\tPMID\n";
 
 	for my $input_file_name (sort keys %$input_file_antimicrobial_table) {
 		my %gene_phenotype_all_classes;
@@ -441,9 +447,8 @@ sub combine_resfinder_results_to_table {
 			}
 		}
 
-		# pointfinder print to detailed files
 		my $pointfinder_results_file = get_pointfinder_results_file($pointfinder_results_dir);
-		parse_pointfinder_hits($input_file_name,$pointfinder_results_file,$output_valid_fh);
+		parse_pointfinder_hits($input_file_name,$pointfinder_results_file,$output_pointfinder_valid_fh);
 
 		# print to summary file
 		my @genotypes;
@@ -463,6 +468,7 @@ sub combine_resfinder_results_to_table {
 	close($output_valid_fh);
 	close($output_invalid_fh);
 	close($summary_report_fh);
+	close($output_pointfinder_valid_fh);
 
 	print "\nFinished running resfinder.\n";
 	print "Results between % identity threshold of [$pid_threshold, 100] are in file $output_valid\n";
