@@ -314,7 +314,7 @@ sub parse_resfinder_hits {
 #	$min_length_overlap  The min length overlap for resfinder.
 #
 # Return:
-#	Nothing.  Output gets written into $output_dir.
+#	1 for success, 0 for failure.  Output gets written into $output_dir.
 sub run_resfinder {
 	my ($database,$input_file,$output_dir,$antimicrobial_class,$pid_threshold,$min_length_overlap) = @_;
 
@@ -343,7 +343,7 @@ sub run_resfinder {
 #	$organism  The pointfinder organism.
 #
 # Return:
-#	Nothing.  Output gets written into $output_dir.
+#	1 for success, 0 for failure.  Output gets written into $output_dir.
 sub run_pointfinder {
 	my ($database,$input_file,$output_dir,$organism) = @_;
 
@@ -355,6 +355,25 @@ sub run_pointfinder {
 	}
 
 	return 1;
+}
+
+# Purpose: Does running of amr detection.
+#
+# Input:
+#	$type  The type of amr software to run (pointfinder or resfinder).
+#	$param  The parameters, as a hash table.
+#
+# Return: 1 for success, 0 for failure.
+sub run_amr_detection {
+	my ($type, $param) = @_;
+
+	if ($type eq 'pointfinder') {
+		return run_pointfinder($param->{'database'},$param->{'input_file'},$param->{'output_dir'},$param->{'organism'});
+	} elsif ($type eq 'resfinder') {
+		return run_resfinder($param->{'database'},$param->{'input_file'},$param->{'output_dir'},$param->{'antimicrobial_class'},$param->{'pid_threshold'},$param->{'min_length_overlap'});
+	} else {
+		die "Invalid type '$type'";
+	}
 }
 
 # Purpose: Executes all resfinder tasks for all files.
@@ -380,15 +399,8 @@ sub execute_all_resfinder_tasks {
 
 	my $thread_pool = Thread::Pool->new(
 		{
-		do => \&run_resfinder,
+		do => \&run_amr_detection,
 		workers => $threads
-		}
-	);
-
-	my $thread_pool_pointfinder = Thread::Pool->new(
-		{
-		do => \&run_pointfinder,
-		worksers => $threads
 		}
 	);
 	
@@ -407,7 +419,12 @@ sub execute_all_resfinder_tasks {
 			mkdir $pointfinder_out;
 			$input_file_antimicrobial_table{$input_file_name}{'pointfinder'} = $pointfinder_out;
 	
-			my $job_id = $thread_pool_pointfinder->job($database_pointfinder,$input_file,$pointfinder_out,$pointfinder_organism);
+			$thread_pool->job('pointfinder',
+					{	'database'=>$database_pointfinder,
+						'input_file'=>$input_file,
+						'output_dir'=>$pointfinder_out,
+						'organism'=>$pointfinder_organism
+					});
 		}
 	}
 	
@@ -424,7 +441,14 @@ sub execute_all_resfinder_tasks {
 			$input_file_antimicrobial_table{$input_file_name}{'resfinder'}{$antimicrobial_class} = $resfinder_out;
 			mkdir $resfinder_out or die "Could not make directory $resfinder_out: $!";
 		
-			my $job_id = $thread_pool->job($database,$input_file,$resfinder_out,$antimicrobial_class,$pid_threshold,$min_length_overlap);
+			my $job_id = $thread_pool->job('resfinder',
+							{'database'=>$database,
+							'input_file'=>$input_file,
+							'output_dir'=>$resfinder_out,
+							'antimicrobial_class'=>$antimicrobial_class,
+							'pid_threshold'=>$pid_threshold,
+							'min_length_overlap',$min_length_overlap
+							});
 			push(@job_ids, $job_id);
 		}
 
@@ -440,7 +464,14 @@ sub execute_all_resfinder_tasks {
 
 	$thread_pool->shutdown;
 
-	$thread_pool_pointfinder->shutdown;
+	# Check remainder of jobs (pointfinder) for any errors
+	my @results = $thread_pool->results;
+	for my $job_id (@results) {
+		my $success = $thread_pool->result($job_id);
+		if (not $success) {
+			die "Error with job in thread $job_id";
+		}
+	}
 	
 	return \%input_file_antimicrobial_table;
 }
