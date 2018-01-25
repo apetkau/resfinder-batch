@@ -13,7 +13,7 @@ use Cwd qw(abs_path);
 use List::MoreUtils qw(uniq);
 use List::Util qw(none);
 
-my $script_version = "0.2.0";
+my $script_version = "0.3.0";
 
 my $empty_value = '-';
 
@@ -58,11 +58,58 @@ chomp $resfinder_database_version;
 $resfinder_database_version = 'Unknown' if ($resfinder_database_version eq '');
 
 my $drug_file = "$script_dir/../data/ARG_drug_key.tsv";
+my $pointfinder_drug_file = "$script_dir/../data/ARG_drug_key_pointfinder.tsv";
 
 my $default_threads = 4;
 my $min_pid_threshold = 80;
 my $default_pid_threshold = 98;
 my $default_min_length_overlap = 0.60;
+
+# Purpose: This parses the table mapping pointfinder gene/codon position to a particular drug.
+#
+# Input:
+#	$file  The table file.
+#
+# Return:
+#	A hash table of the format { 'organism' => { 'gene' -> { 'codon_pos' -> 'drug' } } }.
+sub parse_pointfinder_drug_table {
+	my ($file) = @_;
+
+	my $expected_column_number = 4;
+
+	my %drug_table;
+
+	open(my $file_h, '<', $file) or die "Could not open $file: $!";
+
+	my $header = readline($file_h);
+	die "Error, no contents in $file" if (not defined $header);
+	die "Error: invalid column headers" if ($header ne "Organism\tGene\tCodon Pos.\tDrug\n");
+
+	while (not eof($file_h)) {
+		defined (my $line = readline($file_h)) or die "readline failed for $file: $!";
+		chomp $line;
+
+		if ($line =~ /^#/) {
+			print STDERR "Warning: skipping line '$line' from drug table $file\n";
+			next;
+		}
+
+		my @columns = split(/\t/,$line);
+		die "Error, invalid number of columns: expected $expected_column_number but got ".scalar(@columns)." in '$line'\n" if (scalar @columns != $expected_column_number);
+
+		my ($organism,$gene,$codon_pos,$drug) = @columns;
+
+		if (not exists $drug_table{$organism}{$gene}{$codon_pos}) {
+			$drug_table{$organism}{$gene}{$codon_pos} = $drug;
+		} else {
+			die "Error: organism $organism, gene $gene, codon position $codon_pos exists multiple times in $file";
+		}
+	}
+
+	close($file_h);
+
+	return \%drug_table;
+}
 
 # Purpose: This parses the table mapping gene/accession to a particular drug.
 #
@@ -111,7 +158,7 @@ sub parse_drug_table {
 }
 
 sub parse_pointfinder_hits {
-	my ($input_file_name,$results_file,$output_valid_fh) = @_;
+	my ($input_file_name,$results_file,$pointfinder_organism,$pointfinder_drug_table,$output_valid_fh) = @_;
 
 	open(my $results_fh, "<$results_file") or die "Could not open $results_file: $!";
 
@@ -129,8 +176,19 @@ sub parse_pointfinder_hits {
 		my @columns = split(/\t/,$line);
 		die "Error, invalid number of columns: expected $expected_column_number but got ".scalar(@columns)." in '$line'\n" if (scalar @columns != $expected_column_number);
 		my ($mutation,$nucleotide_change,$aa_change,$resistance,$pmid) = @columns;
+		my ($gene,$codon_pos) = ($mutation =~ /^(\S+)\sp\.[A-Z](\d+)[A-Z]$/);
+		if (not defined $gene or not defined $codon_pos) {
+			die "Error, could not parse mutation '$mutation' from $results_file";
+		}
 
-		print $output_valid_fh "$input_file_name\t$mutation\t$resistance\t$nucleotide_change\t$aa_change\t$pmid\n";
+		my $drug = '-';
+		if (not exists $pointfinder_drug_table->{$pointfinder_organism}{$gene}{$codon_pos}) {
+			warn "No matching drug for pointfinder result '",join("\t",@columns),"'\n";
+		} else {
+			$drug = $pointfinder_drug_table->{$pointfinder_organism}{$gene}{$codon_pos};
+		}
+
+		print $output_valid_fh "$input_file_name\t$gene\t$drug\t$resistance\t$codon_pos\t$nucleotide_change\t$aa_change\t$pmid\n";
 	}
 
 	close($results_fh);
@@ -385,13 +443,14 @@ sub get_pointfinder_results_file {
 #	$input_file_antimicrobial_table  A table mapping input files/antimicrobial classes to resfinder output directories.
 #	$database_class_list  A list of antimicrobial classes in the resfinder database.
 #	$drug_table  A table which maps the antimicrobial gene to a drug.
+#	$pointfinder_drug_table  A table which maps the pointfinder gene/position to a drug.
 #	$pid_threshold  The pid threshold for valid results.
 #	$pointfinder_organism  The organism to use for pointfinder (undefined if pointfinder is disabled).
 #
 # Return:
 #	Nothing.  Writes the table to files in $output.
 sub combine_resfinder_results_to_table {
-	my ($output,$input_file_antimicrobial_table,$database_class_list,$drug_table,$pid_threshold,$pointfinder_organism) = @_;
+	my ($output,$input_file_antimicrobial_table,$database_class_list,$drug_table,$pointfinder_drug_table,$pid_threshold,$pointfinder_organism) = @_;
 
 	my $output_valid = "$output/$output_results_table";
 	my $output_invalid = "$output/$variants_results_table";
@@ -426,7 +485,7 @@ sub combine_resfinder_results_to_table {
 	if ($do_pointfinder) {
 		open($output_pointfinder_valid_fh, '>', $output_pointfinder_valid) or die "Could not write to file $output_pointfinder_valid: $!";
 		# pointfinder print to detailed files
-		print $output_pointfinder_valid_fh "FILE\tGENE\tRESFINDER_PHENOTYPE\tNUCLEOTIDE\tAMINO_ACID\tPMID\n";
+		print $output_pointfinder_valid_fh "FILE\tGENE\tDRUG\tRESFINDER_PHENOTYPE\tCODON_POSITION\tNUCLEOTIDE\tAMINO_ACID\tPMID\n";
 	}
 
 	for my $input_file_name (sort keys %$input_file_antimicrobial_table) {
@@ -463,7 +522,7 @@ sub combine_resfinder_results_to_table {
 		if ($do_pointfinder) {
 			my $pointfinder_results_dir = $input_file_antimicrobial_table->{$input_file_name}{'pointfinder'};
 			my $pointfinder_results_file = get_pointfinder_results_file($pointfinder_results_dir);
-			parse_pointfinder_hits($input_file_name,$pointfinder_results_file,$output_pointfinder_valid_fh);
+			parse_pointfinder_hits($input_file_name,$pointfinder_results_file,$pointfinder_organism,$pointfinder_drug_table,$output_pointfinder_valid_fh);
 		}
 
 		# print to summary file
@@ -556,6 +615,7 @@ if (not defined $output) {
 }
 
 my $drug_table = parse_drug_table($drug_file);
+my $pointfinder_drug_table = parse_pointfinder_drug_table($pointfinder_drug_file);
 my $database_class_list = get_database_class_list($database);
 
 mkdir $output or die "Could not make directory $output: $!";
@@ -565,7 +625,7 @@ print "Database version $resfinder_database_version\n";
 print "Using pointfinder with organism $pointfinder_organism\n" if (defined $pointfinder_organism);
 my $input_file_antimicrobial_table = execute_all_resfinder_tasks($threads,$pointfinder_organism,\@ARGV, $database_class_list, $min_pid_threshold, $min_length_overlap,$output);
 
-combine_resfinder_results_to_table($output,$input_file_antimicrobial_table,$database_class_list,$drug_table,$pid_threshold,$pointfinder_organism);
+combine_resfinder_results_to_table($output,$input_file_antimicrobial_table,$database_class_list,$drug_table,$pointfinder_drug_table,$pid_threshold,$pointfinder_organism);
 __END__
 
 =head1 NAME
