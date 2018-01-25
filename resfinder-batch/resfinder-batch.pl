@@ -168,6 +168,17 @@ sub parse_drug_table {
 	return \%drug_table;
 }
 
+# Purpose: This parses the pointfinder hits.
+#
+# Input:
+#	$input_file_name  The name of the input genome.
+#	$results_file  The name of the pointfinder results.
+#	$pointfinder_organism  The pointfinder organism.
+#	$pointfinder_drug_table  The table mapping pointfinder results to a particular drug.
+#	$output_valid_fh  A file handle for printing pointfinder results.
+#
+# Return:
+#	A hash table of the format { 'gene' -> { 'codon_position' -> { 'drug' -> drug, 'amino_acid' -> amino_acid_change } } }
 sub parse_pointfinder_hits {
 	my ($input_file_name,$results_file,$pointfinder_organism,$pointfinder_drug_table,$output_valid_fh) = @_;
 
@@ -323,6 +334,16 @@ sub run_resfinder {
 	return 1;
 }
 
+# Purpose: Runs the pointfinder software.
+#
+# Input:
+#	$database  The location to the pointfinder database.
+#	$input_file  The input genome file.
+#	$output_dir  The output directory for pointfinder.
+#	$organism  The pointfinder organism.
+#
+# Return:
+#	Nothing.  Output gets written into $output_dir.
 sub run_pointfinder {
 	my ($database,$input_file,$output_dir,$organism) = @_;
 
@@ -586,6 +607,10 @@ sub combine_resfinder_results_to_table {
 	print "Summary results are in $output_summary_report\n";
 }
 
+# Purpose:  Prints out information on resfinder/pointfinder.
+#
+# Inputs: None
+# Return: None
 sub run_info {
 	return	basename($0)." $script_version\n\n".
 		"Resfinder: $resfinder_path\n".
