@@ -168,6 +168,8 @@ sub parse_pointfinder_hits {
 	die "Error, no contents in $results_file" if (not defined $header);
 	die "Error: invalid column headers '$header'" if ($header ne "Mutation\tNucleotide change\tAmino acid change\tResistance\tPMID\n");
 
+	my %pointfinder_phenotype;
+
 	while (not eof($results_fh)) {
 		defined (my $line = readline($results_fh)) or die "readline failed for $results_file: $!";
 		chomp $line;
@@ -181,6 +183,11 @@ sub parse_pointfinder_hits {
 			die "Error, could not parse mutation '$mutation' from $results_file";
 		}
 
+		my ($aa_from,$aa_to) = ($aa_change =~ /^([A-Z]) -> ([A-Z])$/);
+		if (not defined $aa_from and not defined $aa_to) {
+			die "Error, could not parse amino acids from '$aa_change' in $results_file";
+		}
+
 		my $drug = '-';
 		if (not exists $pointfinder_drug_table->{$pointfinder_organism}{$gene}{$codon_pos}) {
 			warn "No matching drug for pointfinder result '",join("\t",@columns),"'\n";
@@ -188,10 +195,18 @@ sub parse_pointfinder_hits {
 			$drug = $pointfinder_drug_table->{$pointfinder_organism}{$gene}{$codon_pos};
 		}
 
+		if (not exists $pointfinder_phenotype{$gene}{$codon_pos}) {
+			$pointfinder_phenotype{$gene}{$codon_pos} = {'drug'=> $drug, 'amino_acid' => "${aa_from}${codon_pos}${aa_to}"};
+		} else {
+			die "Multiple pointfinder results for $gene:$codon_pos in $results_file";
+		}
+
 		print $output_valid_fh "$input_file_name\t$gene\t$drug\t$resistance\t$codon_pos\t$nucleotide_change\t$aa_change\t$pmid\n";
 	}
 
 	close($results_fh);
+
+	return \%pointfinder_phenotype;
 }
 
 # Purpose: This parses the resfinder results file and prints out entries in the compiled results table.
@@ -519,15 +534,23 @@ sub combine_resfinder_results_to_table {
 			}
 		}
 
+		my @genotypes;
+		my @phenotypes;
 		if ($do_pointfinder) {
 			my $pointfinder_results_dir = $input_file_antimicrobial_table->{$input_file_name}{'pointfinder'};
 			my $pointfinder_results_file = get_pointfinder_results_file($pointfinder_results_dir);
-			parse_pointfinder_hits($input_file_name,$pointfinder_results_file,$pointfinder_organism,$pointfinder_drug_table,$output_pointfinder_valid_fh);
+			my $pointfinder_phenotype = parse_pointfinder_hits($input_file_name,$pointfinder_results_file,$pointfinder_organism,$pointfinder_drug_table,$output_pointfinder_valid_fh);
+
+			for my $gene (sort keys %$pointfinder_phenotype) {
+				my $gene_phenotype = $pointfinder_phenotype->{$gene};
+				for my $codon_pos (sort keys %$gene_phenotype) {
+					push(@genotypes,"$gene $gene_phenotype->{$codon_pos}{'amino_acid'}");
+					push(@phenotypes,$gene_phenotype->{$codon_pos}{'drug'});
+				}
+			}
 		}
 
-		# print to summary file
-		my @genotypes;
-		my @phenotypes;
+		# uniqify summary results
 		for my $key (sort { lc($a) cmp lc($b) } keys %gene_phenotype_all_classes) {
 			push(@genotypes, $gene_phenotype_all_classes{$key}{'gene'});
 			push(@phenotypes, @{$gene_phenotype_all_classes{$key}{'phenotype'}});
