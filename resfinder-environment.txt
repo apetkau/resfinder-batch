@@ -1,6 +1,7 @@
 # This file may be used to create an environment using:
 # $ conda create --name <env> --file <this file>
 # platform: linux-64
+biopython=1.70=np112py27_1
 blast-legacy=2.2.22=1
 boost=1.64.0=py27_4
 boost-cpp=1.64.0=1
@@ -8,6 +9,7 @@ bzip2=1.0.6=h6d464ef_2
 ca-certificates=2017.08.26=h1d4fec5_0
 cairo=1.14.6=4
 certifi=2017.7.27.1=py27h9ceb091_0
+cloog=0.18.0=0
 curl=7.52.1=0
 expat=2.2.5=he0dffb1_0
 fontconfig=2.12.1=5
@@ -23,6 +25,7 @@ graphviz=2.38.0=5
 harfbuzz=1.4.3=0
 icu=58.2=h211956c_0
 intel-openmp=2018.0.0=h15fc484_7
+isl=0.12.2=0
 jbig=2.1=hdba287a_0
 jpeg=9b=h024ee3a_2
 libdb=6.1.26=0
@@ -31,6 +34,7 @@ libffi=3.2.1=hd88cf55_4
 libgcc=7.2.0=h69d50b8_2
 libgcc-ng=7.2.0=h7cc24e2_2
 libgd=2.2.5=0
+libgfortran-ng=7.2.0=h9f7466a_2
 libiconv=1.15=h63c8f33_5
 libidn11=1.33=0
 libpng=1.6.30=1
@@ -41,9 +45,14 @@ libwebp=0.5.2=7
 libxml2=2.9.4=0
 libxslt=1.1.29=hcf9102b_5
 mkl=2018.0.0=hb491cac_4
+mmtf-python=1.0.2=py27_0
+mpc=1.0.3=4
+mpfr=3.1.5=0
+msgpack-python=0.5.1=py27_0
 ncurses=6.0=h9df7e31_2
 nettle=3.3=0
-numpy=1.13.3=py27hbcc08e0_0
+numpy=1.12.1=py27h9378851_1
+olefile=0.44=py27_0
 openssl=1.0.2m=h26d622b_1
 pango=1.40.4=0
 pcre=8.41=hc27e229_1
@@ -189,10 +198,12 @@ perl-xml-writer=0.625=0
 perl-xml-xpath=1.33=0
 perl-xml-xpathengine=0.14=0
 perl-yaml=1.18=0
+pillow=4.3.0=py27_0
 pip=9.0.1=py27ha730c48_4
 pixman=0.34.0=hceecf20_3
 python=2.7.11=0
 readline=6.2=2
+reportlab=3.4.0=py27_0
 setuptools=36.5.0=py27h68b189e_0
 sqlite=3.20.1=hb898158_2
 tidyp=1.04=0
