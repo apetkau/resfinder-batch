@@ -764,4 +764,12 @@ Identifies antimicrobial resistence genes in all the passed B<*.fasta> files, co
 
 =back
 
+resfinder-batch.pl --pointfinder-organism salmonella *.fasta
+
+=over 4
+
+Identifies antimicrobial resistence genes in all the passed B<*.fasta> files using both B<ResFinder> and B<PointFinder> and setting the pointfinder organism to I<salmonella>.
+
+=back
+
 =cut
