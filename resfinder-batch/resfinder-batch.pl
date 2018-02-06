@@ -188,7 +188,8 @@ sub parse_pointfinder_hits {
 
 	my $header = readline($results_fh);
 	die "Error, no contents in $results_file" if (not defined $header);
-	die "Error: invalid column headers '$header'" if ($header ne "Mutation\tNucleotide change\tAmino acid change\tResistance\tPMID\n");
+	chomp $header;
+	die "Error: invalid column headers '$header' in $results_file" if ($header ne "Mutation\tNucleotide change\tAmino acid change\tResistance\tPMID");
 
 	my %pointfinder_phenotype;
 
@@ -341,13 +342,18 @@ sub run_resfinder {
 #	$input_file  The input genome file.
 #	$output_dir  The output directory for pointfinder.
 #	$organism  The pointfinder organism.
+#	$pid_threshold  The percent identity threshold (out of 100%).
+#	$gene_coverage  The gene coverage threshold (out of 1.0).
 #
 # Return:
 #	1 for success, 0 for failure.  Output gets written into $output_dir.
 sub run_pointfinder {
-	my ($database,$input_file,$output_dir,$organism) = @_;
+	my ($database,$input_file,$output_dir,$organism,$pid_threshold,$gene_coverage) = @_;
 
-	my $command = "python $pointfinder_script -p '$database' -m_p '$blastn_path' -s '$organism' -m blastn -o '$output_dir' -i '$input_file' 1> $output_dir/log.out 2> $output_dir/log.err";
+	# convert percent identity (out of 100) to fraction (out of 1).
+	my $identity_fraction = $pid_threshold/100.0;
+
+	my $command = "python $pointfinder_script -t $identity_fraction -l $gene_coverage -p '$database' -m_p '$blastn_path' -s '$organism' -m blastn -o '$output_dir' -i '$input_file' 1> $output_dir/log.out 2> $output_dir/log.err";
 
 	if (system($command) != 0) {
 		print STDERR "Error, could not run '$command'\n";
@@ -368,7 +374,7 @@ sub run_amr_detection {
 	my ($type, $param) = @_;
 
 	if ($type eq 'pointfinder') {
-		return run_pointfinder($param->{'database'},$param->{'input_file'},$param->{'output_dir'},$param->{'organism'});
+		return run_pointfinder($param->{'database'},$param->{'input_file'},$param->{'output_dir'},$param->{'organism'},$param->{'pid_threshold'},$param->{'gene_coverage'});
 	} elsif ($type eq 'resfinder') {
 		return run_resfinder($param->{'database'},$param->{'input_file'},$param->{'output_dir'},$param->{'antimicrobial_class'},$param->{'pid_threshold'},$param->{'min_length_overlap'});
 	} else {
@@ -423,7 +429,9 @@ sub execute_all_resfinder_tasks {
 					{	'database'=>$database_pointfinder,
 						'input_file'=>$input_file,
 						'output_dir'=>$pointfinder_out,
-						'organism'=>$pointfinder_organism
+						'organism'=>$pointfinder_organism,
+						'pid_threshold'=>$pid_threshold,
+						'gene_coverage'=>$min_length_overlap
 					});
 		}
 	}
