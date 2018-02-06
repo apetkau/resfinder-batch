@@ -390,6 +390,7 @@ sub run_amr_detection {
 #	$input_files_list  A list of input files to process through resfinder.
 #	$database_classes_list  A list of database classes.
 #	$pid_threshold  The pid threshold for resfinder.
+#	$pid_threshold_pointfinder  The pid threshold for pointfinder.
 #	$min_length_overlap  The minimum length overlap for resfinder.
 #	$output  The main output directory.
 #
@@ -399,7 +400,7 @@ sub run_amr_detection {
 #		'pointfinder' -> 'output_directory'
 #	} }.
 sub execute_all_resfinder_tasks {
-	my ($threads, $pointfinder_organism, $input_files_list, $database_classes_list, $pid_threshold, $min_length_overlap, $output) = @_;
+	my ($threads, $pointfinder_organism, $input_files_list, $database_classes_list, $pid_threshold, $pid_threshold_pointfinder, $min_length_overlap, $output) = @_;
 
 	my %input_file_antimicrobial_table;
 
@@ -430,7 +431,7 @@ sub execute_all_resfinder_tasks {
 						'input_file'=>$input_file,
 						'output_dir'=>$pointfinder_out,
 						'organism'=>$pointfinder_organism,
-						'pid_threshold'=>$pid_threshold,
+						'pid_threshold'=>$pid_threshold_pointfinder,
 						'gene_coverage'=>$min_length_overlap
 					});
 		}
@@ -640,9 +641,9 @@ sub combine_resfinder_results_to_table {
 	close($output_pointfinder_valid_fh) if ($do_pointfinder);
 
 	print "\nFinished running resfinder.\n";
-	print "Results between % identity threshold of [$pid_threshold, 100] are in file $output_valid\n";
-	print "Results between % identity threshold of [$min_pid_threshold, $pid_threshold] are in file $output_invalid\n";
-	print "Pointfinder results are in file $output_pointfinder_valid\n" if ($do_pointfinder);
+	print "Resfinder results between % identity threshold of [$pid_threshold, 100] are in file $output_valid\n";
+	print "Resfinder results between % identity threshold of [$min_pid_threshold, $pid_threshold] are in file $output_invalid\n";
+	print "Pointfinder results between % identity threshold of [$pid_threshold, 100] are in file $output_pointfinder_valid\n" if ($do_pointfinder);
 	print "Summary results are in $output_summary_report\n";
 }
 
@@ -736,7 +737,7 @@ if (defined $pointfinder_organism) {
 } else {
 	print "Will not run PointFinder\n";
 }
-my $input_file_antimicrobial_table = execute_all_resfinder_tasks($threads,$pointfinder_organism,\@ARGV, $database_class_list, $min_pid_threshold, $min_length_overlap,$output);
+my $input_file_antimicrobial_table = execute_all_resfinder_tasks($threads,$pointfinder_organism,\@ARGV, $database_class_list, $min_pid_threshold, $pid_threshold, $min_length_overlap,$output);
 
 combine_resfinder_results_to_table($output,$input_file_antimicrobial_table,$database_class_list,$drug_table,$pointfinder_drug_table,$pid_threshold,$pointfinder_organism);
 __END__
