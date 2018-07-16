@@ -1,3 +1,5 @@
+**Note: This script has been replaced by [staramr](https://github.com/phac-nml/staramr). It was never quite completed but is placed on GitHub for anyone who is interested.**
+
 # `resfinder-batch.pl`
 
 A script used to batch-execute `resfinder.pl` and `pointfinder-3.0.py` on many assembled genomes and complie the results into a single table.  Example usage like:
@@ -5,8 +7,6 @@ A script used to batch-execute `resfinder.pl` and `pointfinder-3.0.py` on many a
 ```
 resfinder-batch.pl --pointfinder-organism salmonella *.fasta
 ```
-
-**Note: This script has been replaced by [staramr](https://github.com/phac-nml/staramr).**
 
 # Installation
 
