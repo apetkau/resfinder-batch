@@ -6,6 +6,8 @@ A script used to batch-execute `resfinder.pl` and `pointfinder-3.0.py` on many a
 resfinder-batch.pl --pointfinder-organism salmonella *.fasta
 ```
 
+**Note: This script has been replaced by [staramr](https://github.com/phac-nml/staramr).**
+
 # Installation
 
 1. First, create an environment for ResFinder and PointFinder dependencies using [Conda](https://conda.io/miniconda.html).  This can be done as:
